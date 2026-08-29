@@ -6,10 +6,21 @@ namespace QSTX.VoxelGI.Tests
 {
     public sealed class VoxelGIAssetTests
     {
+        // ComputeShader has no Shader.Find equivalent, so the package test
+        // resolves it by its stable .meta GUID instead of a filesystem path.
+        const string ComputeShaderGuid = "f9e2183f8d86eb8489c2352bf547e871";
+
+        static T LoadPackageAsset<T>(string guid) where T : Object
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            Assert.That(path, Is.Not.Empty, $"Package asset GUID {guid} is not registered.");
+            return AssetDatabase.LoadAssetAtPath<T>(path);
+        }
+
         [Test]
         public void ComputeShaderContainsExpectedKernels()
         {
-            var compute = AssetDatabase.LoadAssetAtPath<ComputeShader>("Packages/com.qstx.voxelgi/Shaders/VoxelGICompute.compute");
+            var compute = LoadPackageAsset<ComputeShader>(ComputeShaderGuid);
             Assert.That(compute, Is.Not.Null);
             foreach (string kernel in new[]
                      { "ClearVoxelAccumulation", "VoxelizeMesh", "ResolveVoxelAccumulation", "VoxelDirectLighting",
@@ -20,7 +31,7 @@ namespace QSTX.VoxelGI.Tests
         [Test]
         public void FullscreenShaderContainsOnlyNamedVoxelPasses()
         {
-            var shader = AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.qstx.voxelgi/Shaders/VoxelGI_URP.shader");
+            var shader = Shader.Find("Hidden/QSTX/VoxelGI");
             Assert.That(shader, Is.Not.Null);
             var material = new Material(shader);
             try
@@ -54,7 +65,7 @@ namespace QSTX.VoxelGI.Tests
         [Test]
         public void BlockerContainsOnlyVoxelShadowPass()
         {
-            var shader = AssetDatabase.LoadAssetAtPath<Shader>("Packages/com.qstx.voxelgi/Shaders/VXGIBlocker.shader");
+            var shader = Shader.Find("QSTX/VoxelGI/Blocker");
             Assert.That(shader, Is.Not.Null);
             var material = new Material(shader);
             try
