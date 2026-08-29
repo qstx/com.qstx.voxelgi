@@ -1,0 +1,15 @@
+#pragma kernel ClearVoxelAccumulation
+#pragma kernel VoxelizeMesh
+#pragma kernel ResolveVoxelAccumulation
+#pragma kernel VoxelDirectLighting
+#pragma kernel VoxelIndirectLighting
+#pragma kernel MipmapGeneration
+#pragma kernel CopyTexture3D
+#pragma kernel BilateralFiltering
+
+#pragma multi_compile_local __ _VOXEL_GI_INDIRECT_LOW _VOXEL_GI_INDIRECT_MEDIUM _VOXEL_GI_INDIRECT_HIGH
+
+#include "Includes/VoxelGICommon.hlsl"
+#include "Includes/VoxelGIVoxelization.hlsl"
+#include "Includes/VoxelGILighting.hlsl"
+#include "Includes/VoxelGIFiltering.hlsl"

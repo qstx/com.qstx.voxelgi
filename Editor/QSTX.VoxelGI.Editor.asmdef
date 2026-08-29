@@ -1,0 +1,13 @@
+{
+  "name": "QSTX.VoxelGI.Editor",
+  "rootNamespace": "QSTX.VoxelGI.Editor",
+  "references": [
+    "QSTX.VoxelGI.Runtime",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": true
+}

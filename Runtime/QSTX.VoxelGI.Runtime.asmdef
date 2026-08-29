@@ -1,0 +1,9 @@
+{
+  "name": "QSTX.VoxelGI.Runtime",
+  "rootNamespace": "QSTX.VoxelGI",
+  "references": [
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
+  ],
+  "autoReferenced": true
+}

@@ -1,0 +1,11 @@
+{
+  "name": "QSTX.VoxelGI.Tests.Runtime",
+  "rootNamespace": "QSTX.VoxelGI.Tests",
+  "references": [
+    "QSTX.VoxelGI.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": true
+}

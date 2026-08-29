@@ -1,0 +1,15 @@
+{
+  "name": "QSTX.VoxelGI.Tests.Editor",
+  "rootNamespace": "QSTX.VoxelGI.Tests",
+  "references": [
+    "QSTX.VoxelGI.Runtime",
+    "Unity.RenderPipelines.Core.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": true
+}

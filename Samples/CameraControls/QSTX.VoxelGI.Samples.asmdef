@@ -1,0 +1,8 @@
+{
+  "name": "QSTX.VoxelGI.Samples",
+  "rootNamespace": "QSTX.VoxelGI.Samples",
+  "references": [
+    "UnityEngine.UI"
+  ],
+  "autoReferenced": true
+}
