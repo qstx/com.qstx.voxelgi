@@ -8,12 +8,15 @@ namespace QSTX.VoxelGI
     {
         public readonly Renderer Renderer;
         public readonly bool ContributeSurface;
+        public readonly bool OccludeRadiance;
         public readonly bool CastVoxelShadow;
 
-        public VoxelGIRendererEntry(Renderer renderer, bool contributeSurface, bool castVoxelShadow)
+        public VoxelGIRendererEntry(Renderer renderer, bool contributeSurface, bool occludeRadiance,
+            bool castVoxelShadow)
         {
             Renderer = renderer;
             ContributeSurface = contributeSurface;
+            OccludeRadiance = occludeRadiance;
             CastVoxelShadow = castVoxelShadow;
         }
     }
@@ -59,7 +62,8 @@ namespace QSTX.VoxelGI
         {
             if (renderer == null)
                 return;
-            ExplicitEntries[renderer] = new VoxelGIRendererEntry(renderer, contributeSurface, castVoxelShadow);
+            ExplicitEntries[renderer] = new VoxelGIRendererEntry(renderer, contributeSurface,
+                contributeSurface || castVoxelShadow, castVoxelShadow);
             MarkDirty();
         }
 
@@ -90,7 +94,7 @@ namespace QSTX.VoxelGI
                     Material material = renderer.sharedMaterial;
                     bool blockerOnly = material != null && material.FindPass("ShadowCaster") < 0 &&
                                        material.FindPass("VoxelGIShadow") >= 0;
-                    Entries.Add(new VoxelGIRendererEntry(renderer, !blockerOnly, true));
+                    Entries.Add(new VoxelGIRendererEntry(renderer, !blockerOnly, true, true));
                 }
             }
             s_LastScanTime = now;

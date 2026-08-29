@@ -47,6 +47,7 @@ float4 _VoxelGIBaseMapST;
 float4 _VoxelGIEmissionMapST;
 uint _VoxelGIAlphaClip;
 float _VoxelGIAlphaCutoff;
+uint _VoxelGIOpacityOnly;
 
 uint VoxelGI_LoadRawWord(ByteAddressBuffer source, uint byteAddress)
 {
@@ -155,6 +156,12 @@ void VoxelGI_Store(int3 coordinate, float3 albedo, float3 normal, float opacity,
 {
     if (any(coordinate < 0) || any(coordinate >= _VoxelGIResolution)) return;
     uint address = coordinate.x + _VoxelGIResolution * (coordinate.y + _VoxelGIResolution * coordinate.z);
+    if (_VoxelGIOpacityOnly != 0u)
+    {
+        uint ignored;
+        InterlockedMax(_VoxelGIOpacityAccumulation[address], 65535u, ignored);
+        return;
+    }
     VoxelGI_AtomicAverageAlbedo(address, albedo);
     VoxelGI_AtomicAverageNormal(address, normal * 0.5 + 0.5);
     uint ignored;
@@ -270,11 +277,14 @@ void ResolveVoxelAccumulation(uint3 id : SV_DispatchThreadID)
     uint albedoPacked = _VoxelGIAlbedoAccumulation[address];
     uint normalPacked = _VoxelGINormalAccumulation[address];
     uint4 emissionPacked = _VoxelGIEmissiveAccumulation[address];
-    float occupied = (albedoPacked & 255u) != 0u ? _VoxelGIOpacityAccumulation[address] / 65535.0 : 0.0;
+    bool hasSurface = (albedoPacked & 255u) != 0u;
+    float occupied = _VoxelGIOpacityAccumulation[address] / 65535.0;
     float emissionCount = max((float)emissionPacked.w, 1.0);
     float3 emissive = float3(emissionPacked.xyz) / (1024.0 * emissionCount);
-    _VoxelGIAlbedoOutput[id] = float4(VoxelGI_DecodeAverage(albedoPacked), occupied);
-    _VoxelGINormalOutput[id] = float4(VoxelGI_DecodeAverage(normalPacked), occupied);
+    float3 albedo = hasSurface ? VoxelGI_DecodeAverage(albedoPacked) : 0.0;
+    float3 normal = hasSurface ? VoxelGI_DecodeAverage(normalPacked) : float3(0.5, 1.0, 0.5);
+    _VoxelGIAlbedoOutput[id] = float4(albedo, occupied);
+    _VoxelGINormalOutput[id] = float4(normal, occupied);
     _VoxelGIDirectRadianceOutput[id] = float4(emissive, occupied);
 }
 

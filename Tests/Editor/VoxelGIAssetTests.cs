@@ -84,6 +84,41 @@ namespace QSTX.VoxelGI.Tests
         }
 
         [Test]
+        public void BlockerOccludesRadianceWithoutContributingSurface()
+        {
+            var shader = Shader.Find("QSTX/VoxelGI/Blocker");
+            Assert.That(shader, Is.Not.Null);
+            var material = new Material(shader);
+            GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var renderer = gameObject.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            try
+            {
+                VoxelGIRendererRegistry.MarkDirty();
+                var entries = VoxelGIRendererRegistry.GetEntries(0f);
+                bool found = false;
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    VoxelGIRendererEntry entry = entries[i];
+                    if (entry.Renderer != renderer)
+                        continue;
+                    found = true;
+                    Assert.That(entry.ContributeSurface, Is.False);
+                    Assert.That(entry.OccludeRadiance, Is.True);
+                    Assert.That(entry.CastVoxelShadow, Is.True);
+                    break;
+                }
+                Assert.That(found, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+                Object.DestroyImmediate(material);
+                VoxelGIRendererRegistry.MarkDirty();
+            }
+        }
+
+        [Test]
         public void SampleVolumeProfileContainsVoxelGISettings()
         {
             var profile = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.VolumeProfile>(

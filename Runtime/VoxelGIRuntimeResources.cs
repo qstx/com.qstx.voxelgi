@@ -264,10 +264,14 @@ namespace QSTX.VoxelGI
                 hasActiveSkinnedRenderer = false;
                 for (int i = 0; i < entries.Count; i++)
                 {
-                    Renderer renderer = entries[i].Renderer;
+                    VoxelGIRendererEntry entry = entries[i];
+                    Renderer renderer = entry.Renderer;
                     if (renderer == null)
                         continue;
                     hash = hash * 31 + renderer.GetInstanceID();
+                    hash = hash * 31 + entry.ContributeSurface.GetHashCode();
+                    hash = hash * 31 + entry.OccludeRadiance.GetHashCode();
+                    hash = hash * 31 + entry.CastVoxelShadow.GetHashCode();
                     hash = hash * 31 + renderer.enabled.GetHashCode();
                     hash = hash * 31 + renderer.gameObject.activeInHierarchy.GetHashCode();
                     hash = hash * 31 + renderer.localToWorldMatrix.GetHashCode();

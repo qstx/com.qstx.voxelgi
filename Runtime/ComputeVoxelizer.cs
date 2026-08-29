@@ -54,18 +54,21 @@ namespace QSTX.VoxelGI
             {
                 VoxelGIRendererEntry entry = entries[i];
                 Renderer renderer = entry.Renderer;
-                if (!entry.ContributeSurface || !ShouldVoxelize(renderer, settings.Voxelization.LayerMask, voxelBounds))
+                if ((!entry.ContributeSurface && !entry.OccludeRadiance) ||
+                    !ShouldVoxelize(renderer, settings.Voxelization.LayerMask, voxelBounds))
                     continue;
+                bool opacityOnly = !entry.ContributeSurface && entry.OccludeRadiance;
 
                 if (renderer is MeshRenderer meshRenderer)
                 {
                     MeshFilter filter = meshRenderer.GetComponent<MeshFilter>();
                     if (filter != null && filter.sharedMesh != null)
-                        DispatchRenderer(cmd, resources, context, renderer, filter.sharedMesh, null);
+                        DispatchRenderer(cmd, resources, context, renderer, filter.sharedMesh, null, opacityOnly);
                 }
                 else if (renderer is SkinnedMeshRenderer skinnedRenderer && skinnedRenderer.sharedMesh != null)
                 {
-                    DispatchRenderer(cmd, resources, context, renderer, skinnedRenderer.sharedMesh, skinnedRenderer);
+                    DispatchRenderer(cmd, resources, context, renderer, skinnedRenderer.sharedMesh, skinnedRenderer,
+                        opacityOnly);
                 }
             }
 
@@ -90,7 +93,8 @@ namespace QSTX.VoxelGI
         }
 
         static void DispatchRenderer(CommandBuffer cmd, VoxelGIRuntimeResources resources,
-            VoxelGICameraContext context, Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinnedRenderer)
+            VoxelGICameraContext context, Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinnedRenderer,
+            bool opacityOnly)
         {
             if (mesh.subMeshCount == 0 || !mesh.HasVertexAttribute(VertexAttribute.Position))
                 return;
@@ -111,7 +115,8 @@ namespace QSTX.VoxelGI
                     Material material = subMeshIndex < materials.Length ? materials[subMeshIndex] : null;
                     if (material == null || material.renderQueue > (int)RenderQueue.GeometryLast)
                         continue;
-                    DispatchSubMesh(cmd, resources, context, renderer, mesh, skinnedRenderer, material, subMesh);
+                    DispatchSubMesh(cmd, resources, context, renderer, mesh, skinnedRenderer, material, subMesh,
+                        opacityOnly);
                 }
             }
             catch (Exception exception)
@@ -123,7 +128,7 @@ namespace QSTX.VoxelGI
 
         static void DispatchSubMesh(CommandBuffer cmd, VoxelGIRuntimeResources resources,
             VoxelGICameraContext context, Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinnedRenderer,
-            Material material, SubMeshDescriptor subMesh)
+            Material material, SubMeshDescriptor subMesh, bool opacityOnly)
         {
             ComputeShader compute = resources.ComputeShader;
             int kernel = resources.Kernels.Voxelize.Index;
@@ -169,7 +174,7 @@ namespace QSTX.VoxelGI
                 Matrix4x4 objectToWorld = renderer.localToWorldMatrix;
                 cmd.SetComputeMatrixParam(compute, "_VoxelGIObjectToWorld", objectToWorld);
                 cmd.SetComputeMatrixParam(compute, "_VoxelGINormalToWorld", objectToWorld.inverse.transpose);
-                BindMaterial(cmd, compute, kernel, material);
+                BindMaterial(cmd, compute, kernel, material, opacityOnly);
 
                 int triangleCount = (int)subMesh.indexCount / 3;
                 cmd.DispatchCompute(compute, kernel, resources.Kernels.Voxelize.GroupsX(triangleCount), 1, 1);
@@ -192,7 +197,8 @@ namespace QSTX.VoxelGI
             cmd.SetComputeIntParam(compute, prefix + "Dimension", present ? mesh.GetVertexAttributeDimension(attribute) : 0);
         }
 
-        static void BindMaterial(CommandBuffer cmd, ComputeShader compute, int kernel, Material material)
+        static void BindMaterial(CommandBuffer cmd, ComputeShader compute, int kernel, Material material,
+            bool opacityOnly)
         {
             Texture baseTexture = material.HasProperty(BaseMap) ? material.GetTexture(BaseMap) : null;
             Texture emissionTexture = material.HasProperty(EmissionMap) ? material.GetTexture(EmissionMap) : null;
@@ -217,6 +223,7 @@ namespace QSTX.VoxelGI
                 new Vector4(emissionScale.x, emissionScale.y, emissionOffset.x, emissionOffset.y));
             cmd.SetComputeIntParam(compute, "_VoxelGIAlphaClip", alphaClip ? 1 : 0);
             cmd.SetComputeFloatParam(compute, "_VoxelGIAlphaCutoff", cutoff);
+            cmd.SetComputeIntParam(compute, "_VoxelGIOpacityOnly", opacityOnly ? 1 : 0);
         }
 
         static void BindAccumulationBuffers(CommandBuffer cmd, ComputeShader compute, int kernel,
