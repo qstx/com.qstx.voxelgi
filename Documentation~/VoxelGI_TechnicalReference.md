@@ -112,10 +112,10 @@ Overlay、Scene View、Preview Camera 不执行总控 Pass。分辨率或上下�
 `VoxelGIContributor` 可附加在运行时生成的 prefab 根对象上：
 
 - `includeChildren`：是否注册子级 Renderer
-- `contributeSurface`：是否注入 Albedo/Normal/Emissive/Opacity
+- `contributeSurface`：是否注入 Albedo/Normal/Emissive；关闭但保留 `castVoxelShadow` 时仍写入 Opacity，作为辐射遮挡体
 - `castVoxelShadow`：是否参与 VoxelGI 阴影
 
-没有 Contributor 的 Renderer 默认同时参与表面和阴影；只有 `VoxelGIShadow`、没有 `ShadowCaster` 的材质会自动被识别为 Blocker-only。
+没有 Contributor 的 Renderer 默认同时参与表面、辐射遮挡和阴影；只有 `VoxelGIShadow`、没有 `ShadowCaster` 的材质会自动被识别为 Blocker-only。Blocker-only 不写 Albedo/Normal/Emissive，但会写入体素 Opacity，并参与方向光阴影。
 
 体素更新模式：
 
@@ -200,7 +200,7 @@ Emissive Buffer 使用 `uint4`，RGB 以 1024 固定点缩放并限制到 64；R
 
 ## 8. 方向光阴影与光照
 
-Shadow 阶段使用标准 URP/Lit 的 `LightMode="ShadowCaster"` Pass，手动设置方向光 View/Projection 并写入 Depth32 纹理；URP/Lit 的 Alpha Clip 和常规阴影属性因此可以直接复用。`VXGIBlocker.shader` 只实现 `LightMode="VoxelGIShadow"`，不含 UniversalForward，不会注入表面体素。
+Shadow 阶段使用标准 URP/Lit 的 `LightMode="ShadowCaster"` Pass，手动设置方向光 View/Projection 并写入 Depth32 纹理；URP/Lit 的 Alpha Clip 和常规阴影属性因此可以直接复用。`VXGIBlocker.shader` 只实现 `LightMode="VoxelGIShadow"`，不含 UniversalForward；Compute 体素化会为它写入 Opacity，但不写表面颜色、法线或辐射。
 
 `VoxelDirectLighting`：
 
@@ -286,7 +286,7 @@ VoxelGI 不维护自定义 Lit 表面 Shader。普通材质直接使用 URP/Lit 
 | `Composite` | GI 与相机颜色合成 |
 | `DebugVisualization` | 3D/2D 中间结果显示 |
 
-`VXGIBlocker.shader` 只保留 `VoxelGIShadow`，用于不可见但参与 GI 阴影的对象。Compute Shader 入口文件只声明 8 个 Kernel，具体函数按 Common、Voxelization、Lighting 和 Filtering include 拆分。
+`VXGIBlocker.shader` 只保留 `VoxelGIShadow`，用于不可见但同时阻挡方向光和体素辐射的对象。Compute Shader 入口文件只声明 8 个 Kernel，具体函数按 Common、Voxelization、Lighting 和 Filtering include 拆分。
 
 ## 12. 调试模式
 
