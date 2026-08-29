@@ -51,9 +51,13 @@ namespace QSTX.VoxelGI.Tests
         public void SampleMaterialsUseUrpLit()
         {
             foreach (string path in new[]
-                     { "Assets/Materials/Blue.mat", "Assets/Materials/Emissive.mat", "Assets/Materials/Gray.mat",
-                       "Assets/Materials/Green.mat", "Assets/Materials/Red.mat", "Assets/Materials/White.mat",
-                       "Assets/Materials/Yellow.mat" })
+                     { "Packages/com.qstx.voxelgi/Samples/SampleScene/Materials/Blue.mat",
+                       "Packages/com.qstx.voxelgi/Samples/SampleScene/Materials/Emissive.mat",
+                       "Packages/com.qstx.voxelgi/Samples/SampleScene/Materials/Gray.mat",
+                       "Packages/com.qstx.voxelgi/Samples/SampleScene/Materials/Green.mat",
+                       "Packages/com.qstx.voxelgi/Samples/SampleScene/Materials/Red.mat",
+                       "Packages/com.qstx.voxelgi/Samples/SampleScene/Materials/White.mat",
+                       "Packages/com.qstx.voxelgi/Samples/SampleScene/Materials/Yellow.mat" })
             {
                 var material = AssetDatabase.LoadAssetAtPath<Material>(path);
                 Assert.That(material, Is.Not.Null, path);
@@ -83,7 +87,7 @@ namespace QSTX.VoxelGI.Tests
         public void SampleVolumeProfileContainsVoxelGISettings()
         {
             var profile = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.VolumeProfile>(
-                "Assets/Scenes/SampleScene/Voxel GI Volume Profile.asset");
+                "Packages/com.qstx.voxelgi/Samples/SampleScene/Voxel GI Volume Profile.asset");
             Assert.That(profile, Is.Not.Null);
             Assert.That(profile.TryGet<QSTX.VoxelGI.VoxelGISettings>(out _), Is.True);
         }

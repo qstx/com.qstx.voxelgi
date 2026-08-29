@@ -1,0 +1,161 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-1052101153721037127
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e2fa58ae2327fcb41b276bad0d5992b8, type: 3}
+  m_Name: Voxel GI Settings
+  m_EditorClassIdentifier: QSTX.VoxelGI.Runtime::QSTX.VoxelGI.VoxelGISettings
+  active: 1
+  enable:
+    m_OverrideState: 1
+    m_Value: 1
+  shadowResolution:
+    m_OverrideState: 1
+    m_Value: 512
+  voxelResolution:
+    m_OverrideState: 1
+    m_Value: 128
+  conservativeRasterization:
+    m_OverrideState: 1
+    m_Value: 0
+  conservativeScale:
+    m_OverrideState: 1
+    m_Value: 1.5
+  layerMask:
+    m_OverrideState: 1
+    m_Value:
+      serializedVersion: 2
+      m_Bits: 4294967295
+  updateMode:
+    m_OverrideState: 1
+    m_Value: 1
+  lightIntensity:
+    m_OverrideState: 1
+    m_Value: 1
+  emissiveIntensity:
+    m_OverrideState: 1
+    m_Value: 1
+  shadowSunBias:
+    m_OverrideState: 1
+    m_Value: 1
+  shadowNormalBias:
+    m_OverrideState: 1
+    m_Value: 1
+  secondBounce:
+    m_OverrideState: 1
+    m_Value: 1
+  indirectQuality:
+    m_OverrideState: 1
+    m_Value: 2
+  indirectMaxSteps:
+    m_OverrideState: 1
+    m_Value: 8
+  indirectAlphaAttenuation:
+    m_OverrideState: 1
+    m_Value: 4
+  indirectIntensity:
+    m_OverrideState: 1
+    m_Value: 1
+  indirectFirstStep:
+    m_OverrideState: 1
+    m_Value: 1
+  indirectStepScale:
+    m_OverrideState: 1
+    m_Value: 1
+  indirectConeAngle:
+    m_OverrideState: 1
+    m_Value: 120
+  indirectMinMipLevel:
+    m_OverrideState: 1
+    m_Value: 0
+  screenQuality:
+    m_OverrideState: 1
+    m_Value: 2
+  screenMaxSteps:
+    m_OverrideState: 1
+    m_Value: 16
+  screenAlphaAttenuation:
+    m_OverrideState: 1
+    m_Value: 8
+  screenIntensity:
+    m_OverrideState: 1
+    m_Value: 1.25
+  screenFirstStep:
+    m_OverrideState: 1
+    m_Value: 1
+  screenStepScale:
+    m_OverrideState: 1
+    m_Value: 1
+  screenConeAngle:
+    m_OverrideState: 1
+    m_Value: 120
+  temporalFilter:
+    m_OverrideState: 1
+    m_Value: 0
+  blueNoise:
+    m_OverrideState: 1
+    m_Value: {fileID: 2800000, guid: b8ef2e212dad1cf40b5eebfed5e1babb, type: 3}
+    dimension: 1
+  temporalCurrentFrameWeight:
+    m_OverrideState: 1
+    m_Value: 0.5
+  temporalClampScale:
+    m_OverrideState: 1
+    m_Value: 1
+  blueNoiseScale:
+    m_OverrideState: 1
+    m_Value: {x: 1, y: 1}
+  jitterSequence:
+    m_OverrideState: 1
+    m_Value: 0
+  haltonLength:
+    m_OverrideState: 1
+    m_Value: 4
+  bilateralFilter:
+    m_OverrideState: 1
+    m_Value: 1
+  bilateralRadius:
+    m_OverrideState: 1
+    m_Value: 4
+  depthThresholdLower:
+    m_OverrideState: 1
+    m_Value: 0.1
+  depthThresholdUpper:
+    m_OverrideState: 1
+    m_Value: 0.1
+  normalThresholdLower:
+    m_OverrideState: 1
+    m_Value: 0.939
+  normalThresholdUpper:
+    m_OverrideState: 1
+    m_Value: 0.948
+  debugMode:
+    m_OverrideState: 1
+    m_Value: 0
+  debugMipLevel:
+    m_OverrideState: 1
+    m_Value: 0
+  debugRayStep:
+    m_OverrideState: 1
+    m_Value: 0.1
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7fd9488000d3734a9e00ee676215985, type: 3}
+  m_Name: Voxel GI Volume Profile
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.VolumeProfile
+  components:
+  - {fileID: -1052101153721037127}
