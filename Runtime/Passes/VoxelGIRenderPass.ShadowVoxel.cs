@@ -33,7 +33,7 @@ namespace QSTX.VoxelGI
         static void ExecuteShadow(VoxelGIFrame frame, RasterCommandBuffer cmd)
         {
             int resolution = frame.Settings.Voxelization.ShadowResolution;
-            cmd.ClearRenderTarget(true, false, Color.black, SystemInfo.usesReversedZBuffer ? 0f : 1f);
+            cmd.ClearRenderTarget(true, false, Color.black, 1f);
             cmd.SetViewport(new Rect(0f, 0f, resolution, resolution));
             cmd.SetViewProjectionMatrices(frame.Matrices.ShadowView, frame.Matrices.ShadowProjection);
             cmd.SetGlobalVector(LightDirection, -frame.DirectionalLight.transform.forward);

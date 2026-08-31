@@ -8,6 +8,7 @@ Shader "Hidden/QSTX/VoxelGI"
         ZTest Always
 
         HLSLINCLUDE
+        #pragma enable_d3d11_debug_symbols
         #include "Includes/VoxelGIFullscreenCommon.hlsl"
         #include "Includes/VoxelGIScreenTrace.hlsl"
         #include "Includes/VoxelGITemporal.hlsl"
