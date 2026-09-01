@@ -97,13 +97,12 @@ voxelToWorld = TRS(gridBounds.min, identity, (voxelSize, voxelSize, voxelSize))
 
 每个 Base Game Camera 都有一个 `VoxelGICameraContext`，包含：
 
-- 体素 3D 纹理：AlbedoOpacity、Normal、DirectRadiance、FinalRadiance、MipScratch
-- 原子 Buffer：Albedo、Normal、HDR Emissive、Opacity
+- 跨帧体素 3D 纹理：AlbedoOpacity、Normal、Emissive、DirectRadiance、FinalRadiance
 - 方向光 Shadow Depth Texture
 - Temporal History A/B、Ping-Pong 状态和 Jitter 状态
 - 体素化更新所需的 Settings、Bounds、Light、Registry 和 Renderer Hash
 
-Overlay、Scene View、Preview Camera 不执行总控 Pass。分辨率或上下文描述变化时释放并重建对应资源。
+四个原子累积 Buffer 与 MipScratch 由 Render Graph 在对应 Pass 内创建，只保留到当前帧中最后一次使用。Overlay、Scene View、Preview Camera 不执行总控 Pass。分辨率或上下文描述变化时释放并重建跨帧资源。
 
 ## 4. Renderer Registry 与更新模式
 
@@ -139,7 +138,7 @@ Overlay、Scene View、Preview Camera 不执行总控 Pass。分辨率或上下�
 | `VoxelGI/ScreenTrace` | Raster | Camera Depth/Normals、Radiance、Transient Texture |
 | `VoxelGI/Temporal` | Raster | ScreenTrace、Motion、Persistent History |
 | `VoxelGI/Bilateral` | Compute | Input、Depth、Normals、Transient UAV |
-| `VoxelGI/Debug` | Raster | 3D 数据、2D 中间结果、Emissive Buffer |
+| `VoxelGI/Debug` | Raster | 持久 3D 数据、2D 中间结果 |
 | `VoxelGI/Composite` | Raster + Copy | Scene Color Copy、Indirect、Camera Color |
 
 只有需要直接访问外部 Raw Mesh Buffer 的体素化阶段使用 Unsafe Pass。Shadow 使用正式 Depth Attachment；Bilateral 使用 Compute Pass；屏幕输出优先使用 Render Graph 帧内 TextureHandle，避免不必要的持久全分辨率 RT。
@@ -148,18 +147,18 @@ Overlay、Scene View、Preview Camera 不执行总控 Pass。分辨率或上下�
 
 ## 6. 资源格式与所有权
 
-体素纹理由 `RTHandles.Alloc` 直接创建并由 `VoxelGICameraContext` 独占释放，格式为跨 Windows/Metal 验证的 `R16G16B16A16_SFloat`：
+需要跨帧复用的体素纹理由 `RTHandles.Alloc` 创建并由 `VoxelGICameraContext` 独占释放，格式为跨 Windows/Metal 验证的 `R16G16B16A16_SFloat`：
 
 | 资源 | Mip | 内容 |
 |------|:---:|------|
 | `AlbedoOpacity` | 否 | RGB Albedo，A Opacity |
 | `Normal` | 否 | RGB 世界法线 0–1 编码，A 占用标记 |
+| `Emissive` | 否 | Resolve 后的纯 HDR Emissive，供重光照与 Debug 复用 |
 | `DirectRadiance` | 是 | Emissive + 方向光 |
 | `FinalRadiance` | 是 | Direct + 第二次反弹 |
-| `MipScratch` | 是 | Mipmap 中间结果 |
 | `ShadowDepth` | 否 | 硬件 Depth32 Shadow Texture |
 
-屏幕资源 ConeTrace、Bilateral、Scene Copy 和 Composite 为当前 Graph 的 transient TextureHandle；Temporal History A/B 按相机分辨率持久化。
+原子累积 Buffer 使用 transient BufferHandle；MipScratch 与屏幕资源 ConeTrace、Bilateral、Scene Copy、Composite 使用 transient TextureHandle。它们只在 Voxelization/Lighting 实际执行时创建并可由 Render Graph 资源池复用。Temporal History A/B 按相机分辨率持久化。
 
 ## 7. Compute 体素化
 
@@ -196,7 +195,7 @@ Overlay、Scene View、Preview Camera 不执行总控 Pass。分辨率或上下�
 3. `InterlockedMax` 合并 Opacity。
 4. `InterlockedAdd` 累积 HDR Emissive RGB 和样本数。
 
-Emissive Buffer 使用 `uint4`，RGB 以 1024 固定点缩放并限制到 64；Resolve 时除以样本数恢复。所有 Kernel 都使用 `CeilDiv` 计算 Dispatch，并检查 `SV_DispatchThreadID` 边界。
+Emissive 累积 Buffer 使用 `uint4`，RGB 以 1024 固定点缩放并限制到 64；Resolve 时除以样本数并写入持久 Emissive 纹理。四个累积 Buffer 均为当前 Voxelization Pass 的瞬态资源。所有 Kernel 都使用 `CeilDiv` 计算 Dispatch，并检查 `SV_DispatchThreadID` 边界。
 
 ## 8. 方向光阴影与光照
 
@@ -205,7 +204,7 @@ Shadow 阶段使用标准 URP/Lit 的 `LightMode="ShadowCaster"` Pass，手动�
 `VoxelDirectLighting`：
 
 - 从 Normal 纹理解码世界法线。
-- 读取 Resolve 阶段写入的 Emissive radiance。
+- 从独立 Emissive 纹理读取 Resolve 阶段写入的纯发光结果，避免重新光照时累积上一轮方向光结果。
 - 根据 `WorldToShadow` 将带 Sun/Normal Bias 的体素位置映射到 Shadow Depth。
 - 使用平台反向 Z 标记比较阴影。
 - 计算 `saturate(dot(normal, -sun.forward))`，叠加方向光颜色/强度和 Albedo。
@@ -294,7 +293,7 @@ VoxelGI 不维护自定义 Lit 表面 Shader。普通材质直接使用 URP/Lit 
 
 `Disabled`、`Albedo`、`Normal`、`Emissive`、`Shadow`、`DirectRadiance`、`FinalRadiance`、`ScreenTrace`、`Temporal`、`Bilateral`。
 
-Albedo/Normal/Emissive/Direct/Final 使用世界空间体素盒 Ray Marching；Shadow 显示 Depth Texture；ScreenTrace/Temporal/Bilateral 直接显示对应屏幕 Texture。调试模式会尽量提前结束不相关的后续阶段。
+Albedo/Normal/Emissive/Direct/Final 使用世界空间体素盒 Ray Marching，其中 Emissive 直接采样持久 Emissive 纹理；Shadow 显示 Depth Texture；ScreenTrace/Temporal/Bilateral 直接显示对应屏幕 Texture。调试模式会尽量提前结束不相关的后续阶段。
 
 ## 13. 当前限制
 

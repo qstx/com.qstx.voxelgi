@@ -11,6 +11,7 @@ namespace QSTX.VoxelGI
         public static readonly int ScreenSize = Shader.PropertyToID("_VoxelGIScreenSize");
         public static readonly int AlbedoOpacity = Shader.PropertyToID("_VoxelGIAlbedoOpacity");
         public static readonly int Normal = Shader.PropertyToID("_VoxelGINormal");
+        public static readonly int Emissive = Shader.PropertyToID("_VoxelGIEmissive");
         public static readonly int DirectRadiance = Shader.PropertyToID("_VoxelGIDirectRadiance");
         public static readonly int FinalRadiance = Shader.PropertyToID("_VoxelGIFinalRadiance");
         public static readonly int ShadowMap = Shader.PropertyToID("_VoxelGIShadowMap");

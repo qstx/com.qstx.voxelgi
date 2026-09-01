@@ -80,6 +80,10 @@ namespace QSTX.VoxelGI
         sealed class VoxelizationPassData
         {
             public VoxelGIFrame Frame;
+            public BufferHandle AlbedoAccumulation;
+            public BufferHandle NormalAccumulation;
+            public BufferHandle EmissiveAccumulation;
+            public BufferHandle OpacityAccumulation;
         }
 
         void RecordVoxelization(RenderGraph renderGraph, VoxelGIFrame frame)
@@ -87,18 +91,29 @@ namespace QSTX.VoxelGI
             VoxelGICameraContext cameraContext = frame.CameraContext;
             TextureHandle albedo = renderGraph.ImportTexture(cameraContext.AlbedoOpacity);
             TextureHandle normal = renderGraph.ImportTexture(cameraContext.Normal);
-            TextureHandle direct = renderGraph.ImportTexture(cameraContext.DirectRadiance);
-            BufferHandle albedoBuffer = renderGraph.ImportBuffer(cameraContext.AlbedoAccumulation);
-            BufferHandle normalBuffer = renderGraph.ImportBuffer(cameraContext.NormalAccumulation);
-            BufferHandle emissiveBuffer = renderGraph.ImportBuffer(cameraContext.EmissiveAccumulation);
-            BufferHandle opacityBuffer = renderGraph.ImportBuffer(cameraContext.OpacityAccumulation);
+            TextureHandle emissive = renderGraph.ImportTexture(cameraContext.Emissive);
+            int voxelCount = checked(frame.Settings.Voxelization.Resolution *
+                                     frame.Settings.Voxelization.Resolution *
+                                     frame.Settings.Voxelization.Resolution);
+            BufferHandle albedoBuffer = renderGraph.CreateBuffer(new BufferDesc(voxelCount, sizeof(uint))
+                { name = "VoxelGI Albedo Accumulation" });
+            BufferHandle normalBuffer = renderGraph.CreateBuffer(new BufferDesc(voxelCount, sizeof(uint))
+                { name = "VoxelGI Normal Accumulation" });
+            BufferHandle emissiveBuffer = renderGraph.CreateBuffer(new BufferDesc(voxelCount, sizeof(uint) * 4)
+                { name = "VoxelGI Emissive Accumulation" });
+            BufferHandle opacityBuffer = renderGraph.CreateBuffer(new BufferDesc(voxelCount, sizeof(uint))
+                { name = "VoxelGI Opacity Accumulation" });
 
             using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 "VoxelGI/Voxelization", out VoxelizationPassData data, VoxelizationSampler);
             data.Frame = frame;
+            data.AlbedoAccumulation = albedoBuffer;
+            data.NormalAccumulation = normalBuffer;
+            data.EmissiveAccumulation = emissiveBuffer;
+            data.OpacityAccumulation = opacityBuffer;
             builder.UseTexture(albedo, AccessFlags.Write);
             builder.UseTexture(normal, AccessFlags.Write);
-            builder.UseTexture(direct, AccessFlags.Write);
+            builder.UseTexture(emissive, AccessFlags.Write);
             builder.UseBuffer(albedoBuffer, AccessFlags.ReadWrite);
             builder.UseBuffer(normalBuffer, AccessFlags.ReadWrite);
             builder.UseBuffer(emissiveBuffer, AccessFlags.ReadWrite);
@@ -107,9 +122,14 @@ namespace QSTX.VoxelGI
             builder.SetRenderFunc(static (VoxelizationPassData passData, UnsafeGraphContext context) =>
             {
                 CommandBuffer commandBuffer = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
+                var accumulation = new VoxelGIAccumulationBuffers(
+                    passData.AlbedoAccumulation,
+                    passData.NormalAccumulation,
+                    passData.EmissiveAccumulation,
+                    passData.OpacityAccumulation);
                 ComputeVoxelizer.Dispatch(commandBuffer, passData.Frame.Resources, passData.Frame.CameraContext,
-                    passData.Frame.Settings, passData.Frame.Matrices.WorldToVoxel, passData.Frame.Bounds,
-                    passData.Frame.Renderers);
+                    accumulation, passData.Frame.Settings, passData.Frame.Matrices.WorldToVoxel,
+                    passData.Frame.Bounds, passData.Frame.Renderers);
             });
         }
     }

@@ -13,6 +13,7 @@ namespace QSTX.VoxelGI
             public VoxelGIFrame Frame;
             public TextureHandle Albedo;
             public TextureHandle Normal;
+            public TextureHandle Emissive;
             public TextureHandle Direct;
             public TextureHandle Final;
             public TextureHandle Scratch;
@@ -27,12 +28,14 @@ namespace QSTX.VoxelGI
             data.Frame = frame;
             data.Albedo = renderGraph.ImportTexture(frame.CameraContext.AlbedoOpacity);
             data.Normal = renderGraph.ImportTexture(frame.CameraContext.Normal);
+            data.Emissive = renderGraph.ImportTexture(frame.CameraContext.Emissive);
             data.Direct = renderGraph.ImportTexture(frame.CameraContext.DirectRadiance);
             data.Final = renderGraph.ImportTexture(frame.CameraContext.FinalRadiance);
-            data.Scratch = renderGraph.ImportTexture(frame.CameraContext.MipScratch);
+            data.Scratch = CreateMipScratchTexture(renderGraph, frame.Settings.Voxelization.Resolution);
             data.Shadow = renderGraph.ImportTexture(frame.CameraContext.ShadowDepth);
             builder.UseTexture(data.Albedo, AccessFlags.Read);
             builder.UseTexture(data.Normal, AccessFlags.Read);
+            builder.UseTexture(data.Emissive, AccessFlags.Read);
             builder.UseTexture(data.Direct, AccessFlags.ReadWrite);
             builder.UseTexture(data.Final, AccessFlags.ReadWrite);
             builder.UseTexture(data.Scratch, AccessFlags.ReadWrite);
@@ -54,6 +57,7 @@ namespace QSTX.VoxelGI
             int directKernel = resources.Kernels.DirectLighting.Index;
             cmd.SetComputeTextureParam(compute, directKernel, "_VoxelGIAlbedoOpacity", data.Albedo);
             cmd.SetComputeTextureParam(compute, directKernel, "_VoxelGINormalTexture", data.Normal);
+            cmd.SetComputeTextureParam(compute, directKernel, "_VoxelGIEmissiveTexture", data.Emissive);
             cmd.SetComputeTextureParam(compute, directKernel, "_VoxelGIDirectRadiance", data.Direct);
             cmd.SetComputeTextureParam(compute, directKernel, "_VoxelGIShadowMap", data.Shadow, 0,
                 RenderTextureSubElement.Depth);
@@ -147,6 +151,24 @@ namespace QSTX.VoxelGI
                     resources.Kernels.CopyMip.GroupsY(destinationResolution),
                     resources.Kernels.CopyMip.GroupsZ(destinationResolution));
             }
+        }
+
+        static TextureHandle CreateMipScratchTexture(RenderGraph renderGraph, int resolution)
+        {
+            var descriptor = new TextureDesc(resolution, resolution)
+            {
+                name = "VoxelGI Mip Scratch",
+                dimension = TextureDimension.Tex3D,
+                slices = resolution,
+                format = VoxelGICameraContext.VoxelFormat,
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                enableRandomWrite = true,
+                useMipMap = true,
+                autoGenerateMips = false,
+                clearBuffer = false
+            };
+            return renderGraph.CreateTexture(descriptor);
         }
     }
 }

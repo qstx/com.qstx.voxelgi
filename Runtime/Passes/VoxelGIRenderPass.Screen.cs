@@ -259,6 +259,7 @@ namespace QSTX.VoxelGI
             public VoxelGIFrame Frame;
             public TextureHandle Albedo;
             public TextureHandle Normal;
+            public TextureHandle Emissive;
             public TextureHandle Direct;
             public TextureHandle Final;
             public TextureHandle Shadow;
@@ -271,8 +272,7 @@ namespace QSTX.VoxelGI
             TextureHandle source = resourceData.activeColorTexture;
             TextureHandle output = CreateScreenTexture(renderGraph, source, "VoxelGI Debug", false);
             if (!debugTexture.IsValid())
-                debugTexture = renderGraph.ImportTexture(frame.Resources.GetExternalTexture(Texture2D.blackTexture));
-            BufferHandle emissive = renderGraph.ImportBuffer(frame.CameraContext.EmissiveAccumulation);
+                debugTexture = renderGraph.defaultResources.blackTexture;
 
             using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass(
                 "VoxelGI/Debug", out DebugPassData data, DebugSampler))
@@ -280,6 +280,7 @@ namespace QSTX.VoxelGI
                 data.Frame = frame;
                 data.Albedo = renderGraph.ImportTexture(frame.CameraContext.AlbedoOpacity);
                 data.Normal = renderGraph.ImportTexture(frame.CameraContext.Normal);
+                data.Emissive = renderGraph.ImportTexture(frame.CameraContext.Emissive);
                 data.Direct = renderGraph.ImportTexture(frame.CameraContext.DirectRadiance);
                 data.Final = renderGraph.ImportTexture(frame.Settings.IndirectLighting.SecondBounce
                     ? frame.CameraContext.FinalRadiance
@@ -288,11 +289,11 @@ namespace QSTX.VoxelGI
                 data.DebugTexture = debugTexture;
                 builder.UseTexture(data.Albedo, AccessFlags.Read);
                 builder.UseTexture(data.Normal, AccessFlags.Read);
+                builder.UseTexture(data.Emissive, AccessFlags.Read);
                 builder.UseTexture(data.Direct, AccessFlags.Read);
                 builder.UseTexture(data.Final, AccessFlags.Read);
                 builder.UseTexture(data.Shadow, AccessFlags.Read);
                 builder.UseTexture(data.DebugTexture, AccessFlags.Read);
-                builder.UseBuffer(emissive, AccessFlags.Read);
                 builder.SetRenderAttachment(output, 0, AccessFlags.Write);
                 builder.AllowPassCulling(false);
                 builder.AllowGlobalStateModification(true);
@@ -309,11 +310,11 @@ namespace QSTX.VoxelGI
                                                camera.worldToCameraMatrix;
             cmd.SetGlobalTexture(VoxelGIShaderIDs.AlbedoOpacity, data.Albedo);
             cmd.SetGlobalTexture(VoxelGIShaderIDs.Normal, data.Normal);
+            cmd.SetGlobalTexture(VoxelGIShaderIDs.Emissive, data.Emissive);
             cmd.SetGlobalTexture(VoxelGIShaderIDs.DirectRadiance, data.Direct);
             cmd.SetGlobalTexture(VoxelGIShaderIDs.FinalRadiance, data.Final);
             cmd.SetGlobalTexture(VoxelGIShaderIDs.ShadowMap, data.Shadow, RenderTextureSubElement.Depth);
             cmd.SetGlobalTexture("_VoxelGIDebugTexture", data.DebugTexture);
-            cmd.SetGlobalBuffer("_VoxelGIEmissiveAccumulation", data.Frame.CameraContext.EmissiveAccumulation);
             cmd.SetGlobalMatrix(VoxelGIShaderIDs.WorldToVoxel, data.Frame.Matrices.WorldToVoxel);
             cmd.SetGlobalMatrix("_VoxelGIInverseViewProjection", gpuViewProjection.inverse);
             cmd.SetGlobalVector("_VoxelGICameraPosition", camera.transform.position);

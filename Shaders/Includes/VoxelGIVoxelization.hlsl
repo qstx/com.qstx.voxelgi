@@ -11,7 +11,7 @@ RWStructuredBuffer<uint4> _VoxelGIEmissiveAccumulation;
 RWStructuredBuffer<uint> _VoxelGIOpacityAccumulation;
 RWTexture3D<float4> _VoxelGIAlbedoOutput;
 RWTexture3D<float4> _VoxelGINormalOutput;
-RWTexture3D<float4> _VoxelGIDirectRadianceOutput;
+RWTexture3D<float4> _VoxelGIEmissiveOutput;
 
 Texture2D<float4> _VoxelGIBaseMap;
 Texture2D<float4> _VoxelGIEmissionMap;
@@ -285,7 +285,7 @@ void ResolveVoxelAccumulation(uint3 id : SV_DispatchThreadID)
     float3 normal = hasSurface ? VoxelGI_DecodeAverage(normalPacked) : float3(0.5, 1.0, 0.5);
     _VoxelGIAlbedoOutput[id] = float4(albedo, occupied);
     _VoxelGINormalOutput[id] = float4(normal, occupied);
-    _VoxelGIDirectRadianceOutput[id] = float4(emissive, occupied);
+    _VoxelGIEmissiveOutput[id] = float4(emissive, occupied);
 }
 
 #endif

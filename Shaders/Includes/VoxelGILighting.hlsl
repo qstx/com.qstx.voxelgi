@@ -3,6 +3,7 @@
 
 Texture3D<float4> _VoxelGIAlbedoOpacity;
 Texture3D<float4> _VoxelGINormalTexture;
+Texture3D<float4> _VoxelGIEmissiveTexture;
 Texture3D<float4> _VoxelGIInputRadiance;
 RWTexture3D<float4> _VoxelGIDirectRadiance;
 RWTexture3D<float4> _VoxelGIFinalRadiance;
@@ -67,7 +68,7 @@ void VoxelDirectLighting(uint3 id : SV_DispatchThreadID)
 
     float3 normal = normalize(_VoxelGINormalTexture[id].xyz * 2.0 - 1.0);
     float3 worldPosition = mul(_VoxelGIVoxelToWorld, float4(float3(id) + 0.5, 1.0)).xyz;
-    float3 emissive = _VoxelGIDirectRadiance[id].rgb * _VoxelGIEmissiveIntensity;
+    float3 emissive = _VoxelGIEmissiveTexture[id].rgb * _VoxelGIEmissiveIntensity;
     float3 direct = 0.0;
     if (_VoxelGIHasDirectionalLight != 0u)
     {

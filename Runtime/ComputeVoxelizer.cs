@@ -5,6 +5,23 @@ using UnityEngine.Rendering;
 
 namespace QSTX.VoxelGI
 {
+    internal readonly struct VoxelGIAccumulationBuffers
+    {
+        public readonly GraphicsBuffer Albedo;
+        public readonly GraphicsBuffer Normal;
+        public readonly GraphicsBuffer Emissive;
+        public readonly GraphicsBuffer Opacity;
+
+        public VoxelGIAccumulationBuffers(GraphicsBuffer albedo, GraphicsBuffer normal,
+            GraphicsBuffer emissive, GraphicsBuffer opacity)
+        {
+            Albedo = albedo;
+            Normal = normal;
+            Emissive = emissive;
+            Opacity = opacity;
+        }
+    }
+
     internal static class ComputeVoxelizer
     {
         static class IDs
@@ -19,7 +36,7 @@ namespace QSTX.VoxelGI
             public static readonly int OpacityAccumulation = Shader.PropertyToID("_VoxelGIOpacityAccumulation");
             public static readonly int AlbedoOutput = Shader.PropertyToID("_VoxelGIAlbedoOutput");
             public static readonly int NormalOutput = Shader.PropertyToID("_VoxelGINormalOutput");
-            public static readonly int DirectRadianceOutput = Shader.PropertyToID("_VoxelGIDirectRadianceOutput");
+            public static readonly int EmissiveOutput = Shader.PropertyToID("_VoxelGIEmissiveOutput");
             public static readonly int BaseMap = Shader.PropertyToID("_VoxelGIBaseMap");
             public static readonly int EmissionMap = Shader.PropertyToID("_VoxelGIEmissionMap");
         }
@@ -33,14 +50,15 @@ namespace QSTX.VoxelGI
         static readonly HashSet<Mesh> WarnedMeshes = new HashSet<Mesh>();
 
         public static void Dispatch(CommandBuffer cmd, VoxelGIRuntimeResources resources,
-            VoxelGICameraContext context, VoxelGISettingsSnapshot settings, Matrix4x4 worldToVoxel,
-            Bounds voxelBounds, IReadOnlyList<VoxelGIRendererEntry> entries)
+            VoxelGICameraContext context, VoxelGIAccumulationBuffers accumulation,
+            VoxelGISettingsSnapshot settings, Matrix4x4 worldToVoxel, Bounds voxelBounds,
+            IReadOnlyList<VoxelGIRendererEntry> entries)
         {
             ComputeShader compute = resources.ComputeShader;
             int resolution = settings.Voxelization.Resolution;
             int voxelCount = checked(resolution * resolution * resolution);
 
-            BindAccumulationBuffers(cmd, compute, resources.Kernels.Clear.Index, context);
+            BindAccumulationBuffers(cmd, compute, resources.Kernels.Clear.Index, accumulation);
             cmd.SetComputeIntParam(compute, "_VoxelGIElementCount", voxelCount);
             cmd.DispatchCompute(compute, resources.Kernels.Clear.Index, resources.Kernels.Clear.GroupsX(voxelCount), 1, 1);
 
@@ -63,20 +81,21 @@ namespace QSTX.VoxelGI
                 {
                     MeshFilter filter = meshRenderer.GetComponent<MeshFilter>();
                     if (filter != null && filter.sharedMesh != null)
-                        DispatchRenderer(cmd, resources, context, renderer, filter.sharedMesh, null, opacityOnly);
+                        DispatchRenderer(cmd, resources, accumulation, renderer, filter.sharedMesh, null,
+                            opacityOnly);
                 }
                 else if (renderer is SkinnedMeshRenderer skinnedRenderer && skinnedRenderer.sharedMesh != null)
                 {
-                    DispatchRenderer(cmd, resources, context, renderer, skinnedRenderer.sharedMesh, skinnedRenderer,
-                        opacityOnly);
+                    DispatchRenderer(cmd, resources, accumulation, renderer, skinnedRenderer.sharedMesh,
+                        skinnedRenderer, opacityOnly);
                 }
             }
 
             int resolve = resources.Kernels.Resolve.Index;
-            BindAccumulationBuffers(cmd, compute, resolve, context);
+            BindAccumulationBuffers(cmd, compute, resolve, accumulation);
             cmd.SetComputeTextureParam(compute, resolve, IDs.AlbedoOutput, context.AlbedoOpacity.rt);
             cmd.SetComputeTextureParam(compute, resolve, IDs.NormalOutput, context.Normal.rt);
-            cmd.SetComputeTextureParam(compute, resolve, IDs.DirectRadianceOutput, context.DirectRadiance.rt);
+            cmd.SetComputeTextureParam(compute, resolve, IDs.EmissiveOutput, context.Emissive.rt);
             cmd.DispatchCompute(compute, resolve,
                 resources.Kernels.Resolve.GroupsX(resolution),
                 resources.Kernels.Resolve.GroupsY(resolution),
@@ -93,7 +112,7 @@ namespace QSTX.VoxelGI
         }
 
         static void DispatchRenderer(CommandBuffer cmd, VoxelGIRuntimeResources resources,
-            VoxelGICameraContext context, Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinnedRenderer,
+            VoxelGIAccumulationBuffers accumulation, Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinnedRenderer,
             bool opacityOnly)
         {
             if (mesh.subMeshCount == 0 || !mesh.HasVertexAttribute(VertexAttribute.Position))
@@ -115,8 +134,8 @@ namespace QSTX.VoxelGI
                     Material material = subMeshIndex < materials.Length ? materials[subMeshIndex] : null;
                     if (material == null || material.renderQueue > (int)RenderQueue.GeometryLast)
                         continue;
-                    DispatchSubMesh(cmd, resources, context, renderer, mesh, skinnedRenderer, material, subMesh,
-                        opacityOnly);
+                    DispatchSubMesh(cmd, resources, accumulation, renderer, mesh, skinnedRenderer, material,
+                        subMesh, opacityOnly);
                 }
             }
             catch (Exception exception)
@@ -127,8 +146,8 @@ namespace QSTX.VoxelGI
         }
 
         static void DispatchSubMesh(CommandBuffer cmd, VoxelGIRuntimeResources resources,
-            VoxelGICameraContext context, Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinnedRenderer,
-            Material material, SubMeshDescriptor subMesh, bool opacityOnly)
+            VoxelGIAccumulationBuffers accumulation, Renderer renderer, Mesh mesh,
+            SkinnedMeshRenderer skinnedRenderer, Material material, SubMeshDescriptor subMesh, bool opacityOnly)
         {
             ComputeShader compute = resources.ComputeShader;
             int kernel = resources.Kernels.Voxelize.Index;
@@ -159,7 +178,7 @@ namespace QSTX.VoxelGI
                 cmd.SetComputeBufferParam(compute, kernel, IDs.NormalBuffer, normalBuffer);
                 cmd.SetComputeBufferParam(compute, kernel, IDs.UVBuffer, uvBuffer);
                 cmd.SetComputeBufferParam(compute, kernel, IDs.IndexBuffer, indexBuffer);
-                BindAccumulationBuffers(cmd, compute, kernel, context);
+                BindAccumulationBuffers(cmd, compute, kernel, accumulation);
 
                 SetAttribute(cmd, compute, "_VoxelGIPosition", mesh, VertexAttribute.Position, positionStream, true);
                 SetAttribute(cmd, compute, "_VoxelGINormal", mesh, VertexAttribute.Normal, normalStream, hasNormals);
@@ -227,12 +246,12 @@ namespace QSTX.VoxelGI
         }
 
         static void BindAccumulationBuffers(CommandBuffer cmd, ComputeShader compute, int kernel,
-            VoxelGICameraContext context)
+            VoxelGIAccumulationBuffers accumulation)
         {
-            cmd.SetComputeBufferParam(compute, kernel, IDs.AlbedoAccumulation, context.AlbedoAccumulation);
-            cmd.SetComputeBufferParam(compute, kernel, IDs.NormalAccumulation, context.NormalAccumulation);
-            cmd.SetComputeBufferParam(compute, kernel, IDs.EmissiveAccumulation, context.EmissiveAccumulation);
-            cmd.SetComputeBufferParam(compute, kernel, IDs.OpacityAccumulation, context.OpacityAccumulation);
+            cmd.SetComputeBufferParam(compute, kernel, IDs.AlbedoAccumulation, accumulation.Albedo);
+            cmd.SetComputeBufferParam(compute, kernel, IDs.NormalAccumulation, accumulation.Normal);
+            cmd.SetComputeBufferParam(compute, kernel, IDs.EmissiveAccumulation, accumulation.Emissive);
+            cmd.SetComputeBufferParam(compute, kernel, IDs.OpacityAccumulation, accumulation.Opacity);
         }
     }
 }

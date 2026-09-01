@@ -55,21 +55,16 @@ namespace QSTX.VoxelGI
 
     internal sealed class VoxelGICameraContext : IDisposable
     {
-        const GraphicsFormat VoxelFormat = GraphicsFormat.R16G16B16A16_SFloat;
+        internal const GraphicsFormat VoxelFormat = GraphicsFormat.R16G16B16A16_SFloat;
 
         public RTHandle AlbedoOpacity { get; private set; }
         public RTHandle Normal { get; private set; }
+        public RTHandle Emissive { get; private set; }
         public RTHandle DirectRadiance { get; private set; }
         public RTHandle FinalRadiance { get; private set; }
-        public RTHandle MipScratch { get; private set; }
         public RTHandle ShadowDepth { get; private set; }
         public RTHandle HistoryA { get; private set; }
         public RTHandle HistoryB { get; private set; }
-
-        public GraphicsBuffer AlbedoAccumulation { get; private set; }
-        public GraphicsBuffer NormalAccumulation { get; private set; }
-        public GraphicsBuffer EmissiveAccumulation { get; private set; }
-        public GraphicsBuffer OpacityAccumulation { get; private set; }
 
         public int Resolution { get; private set; }
         public int ShadowResolution { get; private set; }
@@ -92,29 +87,24 @@ namespace QSTX.VoxelGI
 
         public bool EnsureVoxelResources(int resolution, int shadowResolution)
         {
-            if (Resolution == resolution && ShadowResolution == shadowResolution && AlbedoOpacity != null)
+            if (Resolution == resolution && ShadowResolution == shadowResolution &&
+                AlbedoOpacity != null && Emissive != null)
                 return false;
 
             ReleaseVoxelResources();
             Resolution = resolution;
             ShadowResolution = shadowResolution;
             MipCount = Mathf.FloorToInt(Mathf.Log(resolution, 2f)) + 1;
-            int voxelCount = checked(resolution * resolution * resolution);
 
             AlbedoOpacity = AllocateVoxelTexture(resolution, false, "VoxelGI Albedo Opacity");
             Normal = AllocateVoxelTexture(resolution, false, "VoxelGI Normal");
+            Emissive = AllocateVoxelTexture(resolution, false, "VoxelGI Emissive");
             DirectRadiance = AllocateVoxelTexture(resolution, true, "VoxelGI Direct Radiance");
             FinalRadiance = AllocateVoxelTexture(resolution, true, "VoxelGI Final Radiance");
-            MipScratch = AllocateVoxelTexture(resolution, true, "VoxelGI Mip Scratch");
             ShadowDepth = RTHandles.Alloc(
                 shadowResolution, shadowResolution, 1, DepthBits.Depth32, GraphicsFormat.None,
                 FilterMode.Bilinear, TextureWrapMode.Clamp, TextureDimension.Tex2D,
                 false, false, false, true, name: "VoxelGI Shadow Depth");
-
-            AlbedoAccumulation = new GraphicsBuffer(GraphicsBuffer.Target.Structured, voxelCount, sizeof(uint));
-            NormalAccumulation = new GraphicsBuffer(GraphicsBuffer.Target.Structured, voxelCount, sizeof(uint));
-            EmissiveAccumulation = new GraphicsBuffer(GraphicsBuffer.Target.Structured, voxelCount, sizeof(uint) * 4);
-            OpacityAccumulation = new GraphicsBuffer(GraphicsBuffer.Target.Structured, voxelCount, sizeof(uint));
             m_VoxelDataValid = false;
             InvalidateHistory();
             return true;
@@ -287,24 +277,16 @@ namespace QSTX.VoxelGI
         {
             AlbedoOpacity?.Release();
             Normal?.Release();
+            Emissive?.Release();
             DirectRadiance?.Release();
             FinalRadiance?.Release();
-            MipScratch?.Release();
             ShadowDepth?.Release();
             AlbedoOpacity = null;
             Normal = null;
+            Emissive = null;
             DirectRadiance = null;
             FinalRadiance = null;
-            MipScratch = null;
             ShadowDepth = null;
-            AlbedoAccumulation?.Dispose();
-            NormalAccumulation?.Dispose();
-            EmissiveAccumulation?.Dispose();
-            OpacityAccumulation?.Dispose();
-            AlbedoAccumulation = null;
-            NormalAccumulation = null;
-            EmissiveAccumulation = null;
-            OpacityAccumulation = null;
             m_VoxelDataValid = false;
         }
 

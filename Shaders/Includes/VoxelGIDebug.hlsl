@@ -5,6 +5,8 @@ TEXTURE3D(_VoxelGIAlbedoOpacity);
 SAMPLER(sampler_VoxelGIAlbedoOpacity);
 TEXTURE3D(_VoxelGINormal);
 SAMPLER(sampler_VoxelGINormal);
+TEXTURE3D(_VoxelGIEmissive);
+SAMPLER(sampler_VoxelGIEmissive);
 TEXTURE3D(_VoxelGIDirectRadiance);
 SAMPLER(sampler_VoxelGIDirectRadiance);
 TEXTURE3D(_VoxelGIFinalRadiance);
@@ -13,7 +15,6 @@ TEXTURE2D(_VoxelGIDebugTexture);
 SAMPLER(sampler_VoxelGIDebugTexture);
 TEXTURE2D(_VoxelGIShadowMap);
 SAMPLER(sampler_VoxelGIShadowMap);
-StructuredBuffer<uint4> _VoxelGIEmissiveAccumulation;
 
 float4x4 _VoxelGIInverseViewProjection;
 float3 _VoxelGICameraPosition;
@@ -45,13 +46,7 @@ float4 VoxelGI_DebugSample(float3 uvw)
         return float4(value.rgb, value.a);
     }
     if (_VoxelGIDebugMode == 3)
-    {
-        uint3 coordinate = min((uint3)(uvw * _VoxelGIResolution), (uint)_VoxelGIResolution - 1u);
-        uint address = coordinate.x + _VoxelGIResolution * (coordinate.y + _VoxelGIResolution * coordinate.z);
-        uint4 packed = _VoxelGIEmissiveAccumulation[address];
-        float3 emissive = float3(packed.xyz) / (1024.0 * max((float)packed.w, 1.0));
-        return float4(emissive, packed.w > 0u ? 1.0 : 0.0);
-    }
+        return SAMPLE_TEXTURE3D_LOD(_VoxelGIEmissive, sampler_VoxelGIEmissive, uvw, 0.0);
     if (_VoxelGIDebugMode == 5)
         return SAMPLE_TEXTURE3D_LOD(_VoxelGIDirectRadiance, sampler_VoxelGIDirectRadiance, uvw,
             _VoxelGIDebugMipLevel);
