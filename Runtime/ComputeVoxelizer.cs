@@ -54,6 +54,8 @@ namespace QSTX.VoxelGI
             VoxelGISettingsSnapshot settings, Matrix4x4 worldToVoxel, Bounds voxelBounds,
             IReadOnlyList<VoxelGIRendererEntry> entries)
         {
+            // 阶段 1：计算体素总数，并清空本帧使用的原子累积 Buffer。
+            // 后续可能有多个三角形并发写入同一体素，因此必须在体素化前将累积数据归零。
             ComputeShader compute = resources.ComputeShader;
             int resolution = settings.Voxelization.Resolution;
             int voxelCount = checked(resolution * resolution * resolution);
@@ -62,12 +64,17 @@ namespace QSTX.VoxelGI
             cmd.SetComputeIntParam(compute, "_VoxelGIElementCount", voxelCount);
             cmd.DispatchCompute(compute, resources.Kernels.Clear.Index, resources.Kernels.Clear.GroupsX(voxelCount), 1, 1);
 
+            // 阶段 2：设置所有网格共用的体素化参数，包括世界空间到体素网格空间的变换、
+            // 体素分辨率以及保守体素化配置。
             cmd.SetComputeMatrixParam(compute, VoxelGIShaderIDs.WorldToVoxel, worldToVoxel);
             cmd.SetComputeIntParam(compute, VoxelGIShaderIDs.Resolution, resolution);
             cmd.SetComputeIntParam(compute, "_VoxelGIConservativeRasterization",
                 settings.Voxelization.ConservativeRasterization ? 1 : 0);
             cmd.SetComputeFloatParam(compute, "_VoxelGIConservativeScale", settings.Voxelization.ConservativeScale);
 
+            // 阶段 3：筛选参与体素化的 Renderer，并按网格的每个有效三角形分派 Compute Shader。
+            // 三角形覆盖到的反照率、法线、发光和不透明度通过原子操作写入累积 Buffer；
+            // 仅遮挡辐射的对象只写入不透明度，不贡献表面材质数据。
             for (int i = 0; i < entries.Count; i++)
             {
                 VoxelGIRendererEntry entry = entries[i];
@@ -91,6 +98,8 @@ namespace QSTX.VoxelGI
                 }
             }
 
+            // 阶段 4：解析原子累积结果，将编码的颜色、法线、发光和占用率转换为最终值，
+            // 写入供后续直接光照和间接光照使用的持久化 3D 纹理。
             int resolve = resources.Kernels.Resolve.Index;
             BindAccumulationBuffers(cmd, compute, resolve, accumulation);
             cmd.SetComputeTextureParam(compute, resolve, IDs.AlbedoOutput, context.AlbedoOpacity.rt);

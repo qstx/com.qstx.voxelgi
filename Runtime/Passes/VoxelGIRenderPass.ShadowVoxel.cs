@@ -104,6 +104,10 @@ namespace QSTX.VoxelGI
             BufferHandle opacityBuffer = renderGraph.CreateBuffer(new BufferDesc(voxelCount, sizeof(uint))
                 { name = "VoxelGI Opacity Accumulation" });
 
+            // 体素化会在执行阶段遍历 Renderer，直接绑定 Mesh/SkinnedMeshRenderer 的原始顶点、索引
+            // GraphicsBuffer 以及材质纹理。这些动态外部资源没有对应的 Render Graph Handle，无法由
+            // Render Graph 完整跟踪和验证；同时现有 ComputeVoxelizer 使用传统 CommandBuffer 记录命令，
+            // 因此这里必须使用 UnsafePass。由 Render Graph 创建的纹理和累积 Buffer 仍需在下方显式声明访问方式。
             using IUnsafeRenderGraphBuilder builder = renderGraph.AddUnsafePass(
                 "VoxelGI/Voxelization", out VoxelizationPassData data, VoxelizationSampler);
             data.Frame = frame;
