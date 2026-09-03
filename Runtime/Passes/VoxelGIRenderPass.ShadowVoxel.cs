@@ -19,6 +19,7 @@ namespace QSTX.VoxelGI
 
         void RecordShadow(RenderGraph renderGraph, VoxelGIFrame frame)
         {
+            // 方向光阴影使用跨帧持久的 ShadowDepth；只有光源发生变化或体素数据重建时才重新绘制。
             TextureHandle shadow = renderGraph.ImportTexture(frame.CameraContext.ShadowDepth);
             using IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass(
                 "VoxelGI/Shadow", out ShadowPassData data, ShadowSampler);
@@ -32,6 +33,8 @@ namespace QSTX.VoxelGI
 
         static void ExecuteShadow(VoxelGIFrame frame, RasterCommandBuffer cmd)
         {
+            // 设置光源 View/Projection 和深度偏移，使用材质的 ShadowCaster（或 VoxelGIShadow）Pass
+            // 将场景几何体绘制到 VoxelGI 专用 ShadowMap，结束后恢复全局光栅状态。
             int resolution = frame.Settings.Voxelization.ShadowResolution;
             cmd.ClearRenderTarget(true, false, Color.black, 1f);
             cmd.SetViewport(new Rect(0f, 0f, resolution, resolution));

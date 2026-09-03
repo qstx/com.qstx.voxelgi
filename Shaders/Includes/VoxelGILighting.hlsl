@@ -42,6 +42,7 @@ SamplerState sampler_VoxelGILinearClamp;
 
 float VoxelGI_SampleShadow(float3 worldPosition, float3 normal)
 {
+    // 将带偏移的世界位置投影到方向光 ShadowMap，并按平台 Reversed-Z 约定比较深度。
     if (_VoxelGIHasDirectionalLight == 0u) return 1.0;
     float3 biased = worldPosition + normal * (_VoxelGIShadowNormalBias * _VoxelGISize)
                     - normalize(_VoxelGISunDirection) * (_VoxelGIShadowSunBias * _VoxelGISize);
@@ -58,6 +59,7 @@ float VoxelGI_SampleShadow(float3 worldPosition, float3 normal)
 [numthreads(4, 4, 4)]
 void VoxelDirectLighting(uint3 id : SV_DispatchThreadID)
 {
+    // 为每个已占用体素计算方向光直射与 Emissive，并覆盖写入 DirectRadiance。
     if (any(id >= (uint)_VoxelGIResolution)) return;
     float4 albedoOpacity = _VoxelGIAlbedoOpacity[id];
     if (albedoOpacity.a <= 0.0)
@@ -82,6 +84,7 @@ void VoxelDirectLighting(uint3 id : SV_DispatchThreadID)
 
 float3 VoxelGI_FibonacciHemisphere(uint index, uint count)
 {
+    // 使用 Fibonacci/黄金角序列在半球上生成均匀分布的 Cone 方向。
     const float goldenAngle = 2.39996322972865332;
     float z = (index + 0.5) / max((float)count, 1.0);
     float radius = sqrt(saturate(1.0 - z * z));
@@ -101,6 +104,7 @@ float3 VoxelGI_FibonacciHemisphere(uint index, uint count)
 
 float3 VoxelGI_TraceIndirect(float3 voxelPosition, float3 normal)
 {
+    // 在体素空间沿法线半球追踪多个 Cone，按距离和 Cone 直径采样 Radiance Mip 并累加。
     float3 origin = voxelPosition / _VoxelGIResolution;
     float3x3 basis = VoxelGI_GetTangentBasis(normal);
     float coneTangent = tan(radians(_VoxelGIIndirectConeAngle * 0.5));
@@ -139,6 +143,7 @@ float3 VoxelGI_TraceIndirect(float3 voxelPosition, float3 normal)
 [numthreads(8, 8, 8)]
 void VoxelIndirectLighting(uint3 id : SV_DispatchThreadID)
 {
+    // 将 DirectRadiance 与一次间接反弹相加，写入供屏幕追踪使用的 FinalRadiance。
     if (any(id >= (uint)_VoxelGIResolution)) return;
     float4 albedoOpacity = _VoxelGIAlbedoOpacity[id];
     if (albedoOpacity.a <= 0.0)
@@ -156,6 +161,7 @@ void VoxelIndirectLighting(uint3 id : SV_DispatchThreadID)
 [numthreads(8, 8, 8)]
 void MipmapGeneration(uint3 id : SV_DispatchThreadID)
 {
+    // 将上一层的 2x2x2 体素平均到下一层，生成 Cone Tracing 所需的 3D Mip。
     if (any(id >= _VoxelGIDestinationResolution)) return;
     float4 value = 0.0;
     [unroll]
@@ -171,6 +177,7 @@ void MipmapGeneration(uint3 id : SV_DispatchThreadID)
 [numthreads(8, 8, 8)]
 void CopyTexture3D(uint3 id : SV_DispatchThreadID)
 {
+    // 将 Scratch 中生成的 Mip 拷贝回目标 3D 纹理对应层级。
     uint resolution = max(1u, (uint)_VoxelGIResolution >> _VoxelGICopyMip);
     if (any(id >= resolution)) return;
     _VoxelGICopyDestination[id] = _VoxelGICopySource.Load(int4(id, _VoxelGICopyMip));

@@ -27,6 +27,7 @@ namespace QSTX.VoxelGI
 
         TextureHandle RecordScreenTrace(RenderGraph renderGraph, UniversalResourceData resourceData, VoxelGIFrame frame)
         {
+            // 屏幕追踪 Pass 将相机深度/法线重建为世界位置，并从体素 Radiance 中追踪屏幕空间间接光。
             TextureHandle output = CreateScreenTexture(renderGraph, resourceData.activeColorTexture,
                 "VoxelGI Screen Trace", false);
             TextureHandle radiance = renderGraph.ImportTexture(frame.Settings.IndirectLighting.SecondBounce
@@ -60,6 +61,7 @@ namespace QSTX.VoxelGI
 
         static void ExecuteScreenTrace(ScreenTracePassData data, RasterCommandBuffer cmd)
         {
+            // 设置体素空间、Cone 追踪步进、随机抖动和蓝噪声参数，然后绘制全屏三角形。
             VoxelGISettingsSnapshot.ScreenTracingSettings settings = data.Frame.Settings.ScreenTracing;
             VoxelGISettingsSnapshot.TemporalSettings temporal = data.Frame.Settings.Temporal;
             VoxelGICameraContext cameraContext = data.Frame.CameraContext;
@@ -107,6 +109,7 @@ namespace QSTX.VoxelGI
         TextureHandle RecordTemporal(RenderGraph renderGraph, UniversalResourceData resourceData,
             VoxelGIFrame frame, TextureHandle current)
         {
+            // Temporal 在两张持久 History 纹理之间 Ping-Pong：读取上一帧，写入当前帧结果。
             Vector2Int screenSize = GetScreenTargetSize(renderGraph, resourceData.activeColorTexture,
                 frame.CameraData);
             frame.CameraContext.EnsureHistory(screenSize.x, screenSize.y, true);
@@ -142,6 +145,7 @@ namespace QSTX.VoxelGI
 
         static void ExecuteTemporal(TemporalPassData data, RasterCommandBuffer cmd)
         {
+            // 使用 Motion Vector 重投影历史，并以当前帧 3x3 邻域方差裁剪异常历史值后混合。
             VoxelGISettingsSnapshot.TemporalSettings settings = data.Frame.Settings.Temporal;
             cmd.SetGlobalTexture(VoxelGIShaderIDs.CurrentIrradiance, data.Current);
             cmd.SetGlobalTexture(VoxelGIShaderIDs.HistoryIrradiance, data.History);
@@ -160,9 +164,8 @@ namespace QSTX.VoxelGI
             public TextureHandle Depth;
             public TextureHandle Normals;
             public TextureHandle Output;
-            // The active color texture can be render-scale/dynamic-resolution sized.
-            // Do not derive the compute domain from Camera.pixelWidth/Height: those
-            // values describe the camera target, not necessarily this RenderGraph RT.
+            // 当前颜色纹理可能采用 Render Scale 或动态分辨率，尺寸不一定等于相机目标尺寸。
+            // Compute 域必须依据 Render Graph 纹理描述获取，而不能直接使用 Camera.pixelWidth/Height。
             public int Width;
             public int Height;
         }
@@ -170,6 +173,7 @@ namespace QSTX.VoxelGI
         TextureHandle RecordBilateral(RenderGraph renderGraph, UniversalResourceData resourceData,
             VoxelGIFrame frame, TextureHandle input)
         {
+            // Bilateral 是可选的屏幕空间边缘保持滤波，依据深度和法线差异抑制跨表面串色。
             TextureHandle output = CreateScreenTexture(renderGraph, resourceData.activeColorTexture,
                 "VoxelGI Bilateral", true);
             Vector2Int screenSize = GetScreenTargetSize(renderGraph, resourceData.activeColorTexture,
@@ -195,6 +199,7 @@ namespace QSTX.VoxelGI
 
         static void ExecuteBilateral(BilateralPassData data, ComputeCommandBuffer cmd)
         {
+            // 每个线程处理一个屏幕像素，并对 Poisson 邻域样本按深度/法线相似度加权平均。
             VoxelGIRuntimeResources resources = data.Frame.Resources;
             ComputeShader compute = resources.ComputeShader;
             int kernel = resources.Kernels.Bilateral.Index;
@@ -227,6 +232,7 @@ namespace QSTX.VoxelGI
         void RecordComposite(RenderGraph renderGraph, UniversalResourceData resourceData,
             VoxelGIFrame frame, TextureHandle indirect)
         {
+            // 复制场景颜色后，将降噪后的间接光与原始场景颜色相加，再写回相机颜色目标。
             TextureHandle source = resourceData.activeColorTexture;
             TextureHandle sceneCopy = CreateScreenTexture(renderGraph, source, "VoxelGI Scene Copy", false);
             RenderGraphUtils.AddCopyPass(renderGraph, source, sceneCopy, "VoxelGI Copy Scene Color");
@@ -269,6 +275,7 @@ namespace QSTX.VoxelGI
         void RecordDebug(RenderGraph renderGraph, UniversalResourceData resourceData,
             VoxelGIFrame frame, TextureHandle debugTexture)
         {
+            // Debug Pass 复用同一全屏材质，根据 DebugMode 展示体素纹理、Shadow、追踪或滤波结果。
             TextureHandle source = resourceData.activeColorTexture;
             TextureHandle output = CreateScreenTexture(renderGraph, source, "VoxelGI Debug", false);
             if (!debugTexture.IsValid())
@@ -305,6 +312,7 @@ namespace QSTX.VoxelGI
 
         static void ExecuteDebug(DebugPassData data, RasterCommandBuffer cmd)
         {
+            // 将相机射线变换到体素空间，在体素包围盒内进行调试采样和前向合成。
             Camera camera = data.Frame.CameraData.camera;
             Matrix4x4 gpuViewProjection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true) *
                                                camera.worldToCameraMatrix;
@@ -330,6 +338,7 @@ namespace QSTX.VoxelGI
         static TextureHandle CreateScreenTexture(RenderGraph renderGraph, TextureHandle reference,
             string name, bool randomWrite)
         {
+            // 复制相机颜色目标的尺寸/格式创建屏幕中间纹理，并按需求启用 Compute UAV 写入。
             TextureDesc descriptor = renderGraph.GetTextureDesc(reference);
             descriptor.name = name;
             descriptor.clearBuffer = true;
@@ -343,6 +352,7 @@ namespace QSTX.VoxelGI
         static Vector2Int GetScreenTargetSize(RenderGraph renderGraph, TextureHandle reference,
             UniversalCameraData cameraData)
         {
+            // 优先使用 Render Graph 实际纹理尺寸，兼容 Render Scale、动态分辨率和离屏目标。
             TextureDesc descriptor = renderGraph.GetTextureDesc(reference);
             int width = descriptor.width > 0 ? descriptor.width : cameraData.scaledWidth;
             int height = descriptor.height > 0 ? descriptor.height : cameraData.scaledHeight;
@@ -355,6 +365,7 @@ namespace QSTX.VoxelGI
 
         static Vector2 GetJitter(int index, VoxelGISettingsSnapshot.TemporalSettings settings)
         {
+            // 根据设置生成 Temporal 抖动序列：Halton 用于规则低差异采样，否则使用黄金比例序列。
             if (settings.JitterSequence == VoxelGIJitterSequence.Halton)
                 return new Vector2(Halton(index, 2), Halton(index, 3));
             const float conjugate = 0.618033988749895f;
@@ -364,6 +375,7 @@ namespace QSTX.VoxelGI
 
         static float Halton(int index, int radix)
         {
+            // 计算指定基数的 Halton 序列值，并限制序列索引避免长期累积数值误差。
             int value = index % 1024;
             float result = 0f;
             float fraction = 1f / radix;

@@ -1,3 +1,4 @@
+// 计算阶段按顺序覆盖：累积清理、网格体素化、结果解析、直射/间接光照、Mip 生成、Mip 拷贝和屏幕滤波。
 #pragma kernel ClearVoxelAccumulation
 #pragma kernel VoxelizeMesh
 #pragma kernel ResolveVoxelAccumulation
@@ -7,8 +8,10 @@
 #pragma kernel CopyTexture3D
 #pragma kernel BilateralFiltering
 
+// 间接光照质量通过局部关键字选择 Cone 数量：Low/Medium/High 分别使用不同采样密度。
 #pragma multi_compile_local __ _VOXEL_GI_INDIRECT_LOW _VOXEL_GI_INDIRECT_MEDIUM _VOXEL_GI_INDIRECT_HIGH
 
+// 所有 Compute Kernel 共享坐标变换、体素化、光照和 Bilateral 的数据结构与辅助函数。
 #include "Includes/VoxelGICommon.hlsl"
 #include "Includes/VoxelGIVoxelization.hlsl"
 #include "Includes/VoxelGILighting.hlsl"

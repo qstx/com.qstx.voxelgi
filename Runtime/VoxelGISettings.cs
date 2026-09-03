@@ -97,10 +97,12 @@ namespace QSTX.VoxelGI
         public ClampedIntParameter debugMipLevel = new ClampedIntParameter(0, 0, 8);
         public MinFloatParameter debugRayStep = new MinFloatParameter(0.1f, 0.001f);
 
+        // Volume 栈中只有显式启用时才会插入 VoxelGI Render Graph 流程。
         public bool IsActive() => enable.value;
 
         internal VoxelGISettingsSnapshot Resolve()
         {
+            // 将 Volume 参数归一化为本帧不可变快照，统一处理分辨率、阈值和各阶段运行时设置。
             int resolvedShadow = NormalizePowerOfTwo(shadowResolution.value, 64, 4096);
             int resolvedVoxel = NormalizePowerOfTwo(voxelResolution.value, 16, 256);
             float depthUpper = Mathf.Max(depthThresholdLower.value + 1e-5f, depthThresholdUpper.value);

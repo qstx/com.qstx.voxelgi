@@ -113,6 +113,7 @@ namespace QSTX.VoxelGI
 
         static bool ShouldVoxelize(Renderer renderer, LayerMask layerMask, Bounds voxelBounds)
         {
+            // 过滤禁用、越界或不在 LayerMask 中的 Renderer，减少无效的 GPU 分派。
             if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy || renderer.forceRenderingOff)
                 return false;
             if ((layerMask.value & (1 << renderer.gameObject.layer)) == 0)
@@ -124,6 +125,7 @@ namespace QSTX.VoxelGI
             VoxelGIAccumulationBuffers accumulation, Renderer renderer, Mesh mesh, SkinnedMeshRenderer skinnedRenderer,
             bool opacityOnly)
         {
+            // 为 Mesh 开启 Raw Buffer 访问，并逐个检查子网格和材质；每个有效三角形由 Voxelize Kernel 处理。
             if (mesh.subMeshCount == 0 || !mesh.HasVertexAttribute(VertexAttribute.Position))
                 return;
 
@@ -158,6 +160,7 @@ namespace QSTX.VoxelGI
             VoxelGIAccumulationBuffers accumulation, Renderer renderer, Mesh mesh,
             SkinnedMeshRenderer skinnedRenderer, Material material, SubMeshDescriptor subMesh, bool opacityOnly)
         {
+            // 绑定顶点/索引流、顶点属性布局、对象变换和材质参数，然后以三角形数量分派体素化 Kernel。
             ComputeShader compute = resources.ComputeShader;
             int kernel = resources.Kernels.Voxelize.Index;
             int positionStream = mesh.GetVertexAttributeStream(VertexAttribute.Position);
@@ -228,6 +231,7 @@ namespace QSTX.VoxelGI
         static void BindMaterial(CommandBuffer cmd, ComputeShader compute, int kernel, Material material,
             bool opacityOnly)
         {
+            // 从材质提取 Base/Emission 纹理、颜色、UV 变换和 Alpha Clip 设置，供 Shader 重建表面属性。
             Texture baseTexture = material.HasProperty(BaseMap) ? material.GetTexture(BaseMap) : null;
             Texture emissionTexture = material.HasProperty(EmissionMap) ? material.GetTexture(EmissionMap) : null;
             Color baseTint = material.HasProperty(BaseColor) ? material.GetColor(BaseColor) : Color.white;
@@ -257,6 +261,7 @@ namespace QSTX.VoxelGI
         static void BindAccumulationBuffers(CommandBuffer cmd, ComputeShader compute, int kernel,
             VoxelGIAccumulationBuffers accumulation)
         {
+            // 将同一组原子累积 Buffer 绑定到 Clear、Voxelize 和 Resolve 三个 Kernel。
             cmd.SetComputeBufferParam(compute, kernel, IDs.AlbedoAccumulation, accumulation.Albedo);
             cmd.SetComputeBufferParam(compute, kernel, IDs.NormalAccumulation, accumulation.Normal);
             cmd.SetComputeBufferParam(compute, kernel, IDs.EmissiveAccumulation, accumulation.Emissive);

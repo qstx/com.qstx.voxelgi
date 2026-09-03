@@ -22,6 +22,8 @@ namespace QSTX.VoxelGI
 
         void RecordLighting(RenderGraph renderGraph, VoxelGIFrame frame)
         {
+            // 光照 Pass 读取体素材质与 ShadowDepth，更新 Direct/Final Radiance。
+            // 这里导入跨帧资源，并仅为本次 Mipmap 生成创建帧内 Scratch 纹理。
             var data = new LightingPassData();
             using IComputeRenderGraphBuilder builder = renderGraph.AddComputePass(
                 "VoxelGI/Lighting", out data, LightingSampler);
@@ -54,6 +56,7 @@ namespace QSTX.VoxelGI
             VoxelGISettingsSnapshot settings = frame.Settings;
             int resolution = settings.Voxelization.Resolution;
 
+            // 阶段 1：按体素计算方向光直射与 Emissive，并写入 DirectRadiance，随后生成完整 Mipmap。
             int directKernel = resources.Kernels.DirectLighting.Index;
             cmd.SetComputeTextureParam(compute, directKernel, "_VoxelGIAlbedoOpacity", data.Albedo);
             cmd.SetComputeTextureParam(compute, directKernel, "_VoxelGINormalTexture", data.Normal);
@@ -71,6 +74,7 @@ namespace QSTX.VoxelGI
             if (!settings.IndirectLighting.SecondBounce)
                 return;
 
+            // 阶段 2：从 DirectRadiance 沿法线半球进行多 Cone 追踪，累加一次间接反弹到 FinalRadiance。
             int indirectKernel = resources.Kernels.IndirectLighting.Index;
             cmd.SetKeyword(compute, new LocalKeyword(compute, "_VOXEL_GI_INDIRECT_LOW"),
                 settings.IndirectLighting.Quality == VoxelGIConeQuality.Low);
@@ -100,6 +104,7 @@ namespace QSTX.VoxelGI
 
         static void SetSharedLightingParameters(ComputeCommandBuffer cmd, ComputeShader compute, VoxelGIFrame frame)
         {
+            // 绑定所有光照 Kernel 共用的空间变换、体素尺寸、阴影偏移和方向光参数。
             VoxelGISettingsSnapshot.DirectLightingSettings settings = frame.Settings.DirectLighting;
             cmd.SetComputeMatrixParam(compute, VoxelGIShaderIDs.VoxelToWorld, frame.Matrices.VoxelToWorld);
             cmd.SetComputeMatrixParam(compute, VoxelGIShaderIDs.WorldToVoxel, frame.Matrices.WorldToVoxel);
@@ -126,6 +131,8 @@ namespace QSTX.VoxelGI
         static void GenerateMipChain(ComputeCommandBuffer cmd, VoxelGIRuntimeResources resources,
             TextureHandle target, TextureHandle scratch, int baseResolution, int mipCount)
         {
+            // 逐级将 2x2x2 体素块平均到 Scratch，再复制回目标纹理对应 Mip，
+            // 供 Cone Tracing 按光锥直径选择合适的细节层级。
             ComputeShader compute = resources.ComputeShader;
             for (int sourceMip = 0; sourceMip < mipCount - 1; sourceMip++)
             {

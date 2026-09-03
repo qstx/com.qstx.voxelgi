@@ -16,6 +16,7 @@ struct VoxelGIFullscreenVaryings
 
 VoxelGIFullscreenVaryings VoxelGI_FullscreenVertex(VoxelGIFullscreenAttributes input)
 {
+    // 使用无顶点缓冲的全屏三角形覆盖整个目标纹理，避免四边形对角线和额外顶点开销。
     VoxelGIFullscreenVaryings output;
     output.positionCS = GetFullScreenTriangleVertexPosition(input.vertexID);
     output.uv = GetFullScreenTriangleTexCoord(input.vertexID);
@@ -24,12 +25,14 @@ VoxelGIFullscreenVaryings VoxelGI_FullscreenVertex(VoxelGIFullscreenAttributes i
 
 float3 VoxelGI_RGBToYCoCg(float3 value)
 {
+    // Temporal 裁剪在亮度/色度空间进行，减少 RGB 空间直接裁剪造成的颜色偏移。
     float midpoint = (value.r + value.b) * 0.5;
     return float3((value.g + midpoint) * 0.5, (value.r - value.b) * 0.5, (value.g - midpoint) * 0.5);
 }
 
 float3 VoxelGI_YCoCgToRGB(float3 value)
 {
+    // 将 Temporal 处理后的 YCoCg 值还原为 RGB。
     return float3(value.x + value.y - value.z, value.x + value.z, value.x - value.y - value.z);
 }
 

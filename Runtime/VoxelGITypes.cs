@@ -39,6 +39,7 @@ namespace QSTX.VoxelGI
 
     internal readonly struct VoxelGISettingsSnapshot
     {
+        // Render Graph 一帧内使用的不可变设置快照，避免执行过程中直接读取 Volume 参数。
         public readonly VoxelizationSettings Voxelization;
         public readonly DirectLightingSettings DirectLighting;
         public readonly IndirectLightingSettings IndirectLighting;

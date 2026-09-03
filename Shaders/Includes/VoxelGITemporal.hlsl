@@ -20,6 +20,7 @@ static const float2 VoxelGI_Neighborhood[9] =
 
 float4 VoxelGI_TemporalFragment(VoxelGIFullscreenVaryings input) : SV_Target
 {
+    // 先用 Motion Vector 重投影上一帧，再依据当前帧邻域方差裁剪历史并进行时序混合。
     float3 current = SAMPLE_TEXTURE2D(_VoxelGICurrentIrradiance, sampler_VoxelGICurrentIrradiance, input.uv).rgb;
     if (_VoxelGIHistoryValid == 0)
         return float4(current, 1.0);

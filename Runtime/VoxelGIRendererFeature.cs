@@ -30,6 +30,8 @@ namespace QSTX.VoxelGI
 
         public override void Create()
         {
+            // Renderer Feature 创建时加载 Shader、初始化运行时资源，并构造 Render Graph Pass。
+            // 重新创建 Feature 前先释放旧资源，避免 ComputeBuffer、RTHandle 等 GPU 资源泄漏。
             ReleaseResources();
             m_Supported = CheckSupport();
             if (!m_Supported)
@@ -58,6 +60,7 @@ namespace QSTX.VoxelGI
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
+            // VoxelGI 只对游戏相机的 Base Camera 生效，避免在 Preview、Overlay 或编辑器相机中重复执行。
             CameraData cameraData = renderingData.cameraData;
             if (!m_Supported || m_RenderPass == null || cameraData.cameraType != CameraType.Game ||
                 cameraData.renderType != CameraRenderType.Base)
@@ -67,6 +70,8 @@ namespace QSTX.VoxelGI
 
         bool CheckSupport()
         {
+            // 运行时依赖 Compute Shader、3D UAV 纹理以及 RGBA16F 的 Load/Store 能力。
+            // 任一能力缺失时整项功能关闭，并只输出一次错误日志。
             bool supported = SystemInfo.supportsComputeShaders && SystemInfo.supports3DTextures &&
                              SystemInfo.IsFormatSupported(GraphicsFormat.R16G16B16A16_SFloat,
                                  GraphicsFormatUsage.LoadStore);

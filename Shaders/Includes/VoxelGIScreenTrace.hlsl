@@ -29,6 +29,7 @@ float2 _VoxelGIJitter;
 
 float3 VoxelGI_SampleHemisphere(uint index, uint count, float2 jitter)
 {
+    // 在单位半球上生成带抖动的低差异采样方向，抖动由蓝噪声或哈希值提供。
     float u = frac((index + 0.5) / max((float)count, 1.0) + jitter.x);
     float v = frac(index * 0.61803398875 + jitter.y);
     float radius = sqrt(u);
@@ -39,6 +40,7 @@ float3 VoxelGI_SampleHemisphere(uint index, uint count, float2 jitter)
 
 float3 VoxelGI_TraceCone(float3 origin, float3 direction, float jitter)
 {
+    // 沿体素空间中的光锥逐步采样 Radiance，并随锥体直径增大选择更粗的 Mip。
     float coneTangent = tan(radians(_VoxelGIScreenConeAngle * 0.5));
     float stepLength = _VoxelGIScreenFirstStep / _VoxelGIResolution;
     float offset = stepLength * lerp(0.5, 1.5, jitter);
@@ -61,6 +63,7 @@ float3 VoxelGI_TraceCone(float3 origin, float3 direction, float jitter)
 
 float4 VoxelGI_ScreenTraceFragment(VoxelGIFullscreenVaryings input) : SV_Target
 {
+    // 从屏幕深度重建世界/体素位置，以屏幕法线为中心发射多个半球 Cone，得到间接辐射。
     float rawDepth = SAMPLE_TEXTURE2D(_VoxelGIScreenDepth, sampler_VoxelGIScreenDepth, input.uv).r;
 #if UNITY_REVERSED_Z
     if (rawDepth <= 0.0) return float4(0.0, 0.0, 0.0, 1.0);

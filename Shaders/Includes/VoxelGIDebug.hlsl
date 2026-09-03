@@ -25,6 +25,7 @@ float _VoxelGIDebugRayStep;
 
 bool VoxelGI_IntersectUnitBox(float3 origin, float3 direction, out float enter, out float exit)
 {
+    // 使用 slab 法计算相机射线与归一化体素盒的进入/离开距离。
     float3 inverseDirection = rcp(direction);
     float3 first = (0.0 - origin) * inverseDirection;
     float3 second = (1.0 - origin) * inverseDirection;
@@ -38,6 +39,7 @@ bool VoxelGI_IntersectUnitBox(float3 origin, float3 direction, out float enter, 
 
 float4 VoxelGI_DebugSample(float3 uvw)
 {
+    // 根据 DebugMode 选择体素材质或 Direct/Final Radiance，并按设置采样指定 Mip。
     if (_VoxelGIDebugMode == 1)
         return SAMPLE_TEXTURE3D_LOD(_VoxelGIAlbedoOpacity, sampler_VoxelGIAlbedoOpacity, uvw, 0.0);
     if (_VoxelGIDebugMode == 2)
@@ -56,6 +58,7 @@ float4 VoxelGI_DebugSample(float3 uvw)
 
 float4 VoxelGI_DebugFragment(VoxelGIFullscreenVaryings input) : SV_Target
 {
+    // Debug 的屏幕入口：特殊模式直接显示 2D 结果，其余模式沿相机射线合成体素数据。
     if (_VoxelGIDebugMode == 4)
     {
         float depth = SAMPLE_TEXTURE2D(_VoxelGIShadowMap, sampler_VoxelGIShadowMap, input.uv).r;

@@ -27,11 +27,13 @@ static const float2 VoxelGI_PoissonDisk[8] =
 
 float VoxelGI_LinearEyeDepth(float rawDepth)
 {
+    // 将相机深度纹理中的非线性深度还原为线性眼空间深度。
     return rcp(_ZBufferParams.z * rawDepth + _ZBufferParams.w);
 }
 
 void VoxelGI_LoadDepthNormal(float2 uv, out float depth, out float3 normal)
 {
+    // 同步读取当前像素的深度和屏幕法线，作为边缘保持滤波的中心参考。
     depth = VoxelGI_LinearEyeDepth(_VoxelGIDepthTexture.SampleLevel(sampler_VoxelGIDepthTexture, uv, 0.0));
     normal = normalize(_VoxelGIScreenNormalTexture.SampleLevel(sampler_VoxelGIScreenNormalTexture, uv, 0.0).xyz);
 }
@@ -39,6 +41,7 @@ void VoxelGI_LoadDepthNormal(float2 uv, out float depth, out float3 normal)
 [numthreads(8, 8, 1)]
 void BilateralFiltering(uint3 id : SV_DispatchThreadID)
 {
+    // 每个线程处理一个屏幕像素；邻域样本仅在深度和法线相近时参与加权平均。
     if (any(id.xy >= (uint2)_VoxelGIScreenSize.xy)) return;
     float2 uv = (id.xy + 0.5) * _VoxelGIScreenSize.zw;
     float centerDepth;

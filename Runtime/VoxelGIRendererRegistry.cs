@@ -52,6 +52,7 @@ namespace QSTX.VoxelGI
 
         public static IReadOnlyList<VoxelGIRendererEntry> GetEntries(float fallbackRescanInterval)
         {
+            // 优先响应场景/注册表变更；当没有显式变更通知时，按配置的间隔执行兜底扫描。
             float now = Time.realtimeSinceStartup;
             if (s_NeedsScan || (fallbackRescanInterval > 0f && now - s_LastScanTime >= fallbackRescanInterval))
                 Rescan(now);
@@ -81,6 +82,8 @@ namespace QSTX.VoxelGI
 
         static void Rescan(float now)
         {
+            // 收集场景中的 MeshRenderer 和 SkinnedMeshRenderer，并合并 Contributor 的显式设置。
+            // 未显式注册的对象按材质是否提供 ShadowCaster/VoxelGIShadow 自动推断贡献方式。
             Entries.Clear();
             var renderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             foreach (Renderer renderer in renderers)

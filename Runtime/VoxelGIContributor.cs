@@ -20,6 +20,7 @@ namespace QSTX.VoxelGI
 
         void OnDisable()
         {
+            // 组件禁用时注销其 Renderer，避免已失效对象继续参与体素化或阴影绘制。
             foreach (Renderer renderer in m_Renderers)
                 VoxelGIRendererRegistry.Unregister(renderer);
             m_Renderers.Clear();
@@ -33,6 +34,7 @@ namespace QSTX.VoxelGI
 
         public void RefreshRegistration()
         {
+            // 先移除旧注册，再按当前层级和开关重新收集 Renderer，确保 Inspector 修改立即生效。
             foreach (Renderer renderer in m_Renderers)
                 VoxelGIRendererRegistry.Unregister(renderer);
             m_Renderers.Clear();

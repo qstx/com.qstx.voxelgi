@@ -20,6 +20,8 @@ namespace QSTX.VoxelGI
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
+            // 总调度入口：先解析当前相机的 Volume 和体素范围，再按数据是否失效决定
+            // 体素化、阴影、光照和屏幕空间后处理是否需要在本帧执行。
             VoxelGIRuntimeResources resources = m_Feature.RuntimeResources;
             if (resources == null)
                 return;
@@ -33,6 +35,8 @@ namespace QSTX.VoxelGI
 
             VoxelGISettingsSnapshot settings = volumeSettings.Resolve();
             VoxelGICameraContext cameraContext = resources.GetContext(camera);
+
+            // 每个相机独立持有体素纹理和时空 History；分辨率变化会重建资源并使 History 失效。
             bool resourcesChanged = cameraContext.EnsureVoxelResources(
                 settings.Voxelization.Resolution, settings.Voxelization.ShadowResolution);
             if (resourcesChanged)
@@ -47,6 +51,8 @@ namespace QSTX.VoxelGI
                 cameraData, settings, volume, bounds, directionalLight, matrices, renderers,
                 VoxelGIRendererRegistry.Version, cameraContext, resources);
 
+            // 根据更新模式、场景 Renderer、体素范围和光照参数判断是否需要重新生成体素数据，
+            // 以及是否只需重新计算光照。重新体素化会同时使 Shadow、Lighting 和 History 失效。
             bool voxelize = cameraContext.ShouldVoxelize(settings, bounds, volume, directionalLight,
                 renderers, frame.RegistryVersion);
             bool relight = voxelize || cameraContext.ShouldRelight(settings, directionalLight);
@@ -71,6 +77,8 @@ namespace QSTX.VoxelGI
                 cameraContext.InvalidateHistory();
             }
 
+            // 以下阶段将体素辐射投影到屏幕：ScreenTrace 负责空间采样，Temporal/Bilateral 负责降噪，
+            // 最后 Composite 将间接光叠加回 URP 当前颜色目标；Debug 模式会在对应阶段提前返回。
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
             VoxelGIDebugMode debugMode = settings.Debug.Mode;
             if (debugMode is >= VoxelGIDebugMode.Albedo and <= VoxelGIDebugMode.FinalRadiance)

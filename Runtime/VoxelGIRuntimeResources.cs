@@ -15,6 +15,7 @@ namespace QSTX.VoxelGI
 
         public VoxelGIComputeKernel(ComputeShader shader, string name)
         {
+            // 缓存 Kernel 索引和线程组尺寸，后续按输入规模计算 Dispatch 所需的组数。
             Index = shader.FindKernel(name);
             shader.GetKernelThreadGroupSizes(Index, out ThreadX, out ThreadY, out ThreadZ);
         }
@@ -87,6 +88,8 @@ namespace QSTX.VoxelGI
 
         public bool EnsureVoxelResources(int resolution, int shadowResolution)
         {
+            // 体素分辨率或阴影分辨率变化时重建每相机的持久 3D 纹理和 ShadowDepth。
+            // 原子累积 Buffer 与 Mip Scratch 属于对应 Render Graph Pass 的帧内资源，不在此分配。
             if (Resolution == resolution && ShadowResolution == shadowResolution &&
                 AlbedoOpacity != null && Emissive != null)
                 return false;
@@ -112,6 +115,7 @@ namespace QSTX.VoxelGI
 
         public bool EnsureHistory(int width, int height, bool required)
         {
+            // Temporal 使用两张屏幕尺寸的 Ping-Pong History；分辨率变化时重新分配并清空历史状态。
             if (!required)
                 return false;
             if (HistoryA != null && m_HistoryWidth == width && m_HistoryHeight == height)
@@ -133,6 +137,7 @@ namespace QSTX.VoxelGI
         public bool ShouldVoxelize(VoxelGISettingsSnapshot settings, Bounds bounds, VoxelGIVolume volume,
             Light light, IReadOnlyList<VoxelGIRendererEntry> renderers, int registryVersion)
         {
+            // EveryFrame 强制更新；OnChange/Manual 则通过设置、范围、注册表、Renderer 或手动版本号判断。
             if (!m_VoxelDataValid || settings.Voxelization.UpdateMode == VoxelGIUpdateMode.EveryFrame)
                 return true;
 
@@ -153,6 +158,7 @@ namespace QSTX.VoxelGI
 
         public bool ShouldRelight(VoxelGISettingsSnapshot settings, Light light)
         {
+            // 体素数据不变时，仅当直接/间接光照参数或方向光状态发生变化才重新光照。
             return !m_VoxelDataValid || ComputeLightingHash(settings, light) != m_LastLightingHash;
         }
 
@@ -164,6 +170,7 @@ namespace QSTX.VoxelGI
         public void MarkVoxelized(VoxelGISettingsSnapshot settings, Bounds bounds, VoxelGIVolume volume,
             Light light, IReadOnlyList<VoxelGIRendererEntry> renderers, int registryVersion)
         {
+            // 记录本次体素化使用的输入快照，供下一帧的 OnChange/Manual 判断复用结果。
             m_VoxelDataValid = true;
             m_LastSettingsHash = ComputeVoxelSettingsHash(settings);
             m_LastBoundsHash = bounds.GetHashCode();
@@ -175,12 +182,14 @@ namespace QSTX.VoxelGI
 
         public void MarkRelit(VoxelGISettingsSnapshot settings, Light light)
         {
+            // 记录光照参数快照，使仅光照变化时不会误触发体素重建。
             m_LastLightingHash = ComputeLightingHash(settings, light);
             m_LastLightHash = ComputeLightHash(light);
         }
 
         public void InvalidateHistory()
         {
+            // 体素范围、体素数据或光照变化后，旧屏幕结果不再对应当前数据，必须重新建立 Temporal History。
             HistoryNeedsClear = true;
             JitterIndex = 0;
         }
@@ -275,6 +284,7 @@ namespace QSTX.VoxelGI
 
         void ReleaseVoxelResources()
         {
+            // 释放每相机持久体素纹理；下一次使用时由 EnsureVoxelResources 按新分辨率重新创建。
             AlbedoOpacity?.Release();
             Normal?.Release();
             Emissive?.Release();
@@ -292,6 +302,7 @@ namespace QSTX.VoxelGI
 
         void ReleaseHistory()
         {
+            // 释放 Temporal 的双缓冲屏幕纹理并重置尺寸状态。
             HistoryA?.Release();
             HistoryB?.Release();
             HistoryA = null;
@@ -324,6 +335,7 @@ namespace QSTX.VoxelGI
 
         public VoxelGIRuntimeResources(Shader fullscreenShader, ComputeShader computeShader)
         {
+            // 创建全屏材质，缓存 Compute Kernel 和全屏 Shader Pass 索引，避免每帧查找。
             ComputeShader = computeShader;
             FullscreenMaterial = CoreUtils.CreateEngineMaterial(fullscreenShader);
             Kernels = new VoxelGIKernels(computeShader);
@@ -335,6 +347,7 @@ namespace QSTX.VoxelGI
 
         public VoxelGICameraContext GetContext(Camera camera)
         {
+            // 按 Camera InstanceID 隔离体素/History 资源，并更新最后使用帧用于过期回收。
             int id = camera.GetInstanceID();
             if (!m_CameraContexts.TryGetValue(id, out VoxelGICameraContext context))
             {
@@ -347,6 +360,7 @@ namespace QSTX.VoxelGI
 
         public RTHandle GetExternalTexture(Texture texture)
         {
+            // 将外部蓝噪声等 Texture 缓存为 RTHandle，以便在 Render Graph 中作为 Imported 资源使用。
             texture ??= Texture2D.grayTexture;
             if (!m_ExternalTextures.TryGetValue(texture, out RTHandle handle))
             {
@@ -358,6 +372,7 @@ namespace QSTX.VoxelGI
 
         public void ReleaseUnusedContexts(int maxUnusedFrames = 8)
         {
+            // 回收一段时间未渲染的相机上下文，防止相机销毁或切换后持续占用 GPU 内存。
             if (m_CameraContexts.Count == 0)
                 return;
             var stale = ListPool<int>.Get();
@@ -384,6 +399,7 @@ namespace QSTX.VoxelGI
 
         public void Dispose()
         {
+            // Renderer Feature 销毁时释放所有相机资源、外部纹理句柄和全屏材质。
             foreach (VoxelGICameraContext context in m_CameraContexts.Values)
                 context.Dispose();
             m_CameraContexts.Clear();
