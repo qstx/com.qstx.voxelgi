@@ -173,7 +173,12 @@ void VoxelGI_Store(int3 coordinate, float3 albedo, float3 normal, float opacity,
     VoxelGI_AtomicAverageNormal(address, normal * 0.5 + 0.5);
     uint ignored;
     InterlockedMax(_VoxelGIOpacityAccumulation[address], (uint)round(saturate(opacity) * 65535.0), ignored);
+    // Emissive 使用定点数编码为 uint，便于跨平台执行 InterlockedAdd：
+    // 先去除负值，再将单次 HDR 发光限制在 64，最后以 1/1024 的精度量化并四舍五入。
     uint3 encodedEmission = (uint3)round(min(max(emissive, 0.0), 64.0) * 1024.0);
+
+    // xyz 累加量化后的 RGB 发光值，w 累加参与写入的样本数；Resolve 阶段会除以 1024 和样本数，
+    // 从而还原每个体素的平均发光，而不是让三角形覆盖次数直接造成亮度叠加。
     InterlockedAdd(_VoxelGIEmissiveAccumulation[address].x, encodedEmission.x, ignored);
     InterlockedAdd(_VoxelGIEmissiveAccumulation[address].y, encodedEmission.y, ignored);
     InterlockedAdd(_VoxelGIEmissiveAccumulation[address].z, encodedEmission.z, ignored);
@@ -307,6 +312,7 @@ void ResolveVoxelAccumulation(uint3 id : SV_DispatchThreadID)
     uint4 emissionPacked = _VoxelGIEmissiveAccumulation[address];
     bool hasSurface = (albedoPacked & 255u) != 0u;
     float occupied = _VoxelGIOpacityAccumulation[address] / 65535.0;
+    // 反向执行 Emissive 的定点解码和平均：xyz 先除以量化倍率 1024，再除以样本计数 w。
     float emissionCount = max((float)emissionPacked.w, 1.0);
     float3 emissive = float3(emissionPacked.xyz) / (1024.0 * emissionCount);
     float3 albedo = hasSurface ? VoxelGI_DecodeAverage(albedoPacked) : 0.0;

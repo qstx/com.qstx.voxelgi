@@ -72,12 +72,22 @@ float4 VoxelGI_DebugFragment(VoxelGIFullscreenVaryings input) : SV_Target
 #else
     const float farDepth = 1.0;
 #endif
+    // 从当前像素和相机远平面深度重建世界空间远点；farDepth 必须匹配平台的 Reversed-Z 约定。
     float3 farWorld = ComputeWorldSpacePosition(input.uv, farDepth, _VoxelGIInverseViewProjection);
+
+    // 构造从相机位置穿过当前屏幕像素的世界空间射线方向。
     float3 directionWorld = normalize(farWorld - _VoxelGICameraPosition);
+
+    // 将相机射线起点从世界空间变换到归一化体素空间 [0, 1]；除以分辨率后，
+    // 体素网格坐标被转换为可用于 3D Texture 采样的 UVW 坐标。
     float3 origin = mul(_VoxelGIWorldToVoxel, float4(_VoxelGICameraPosition, 1.0)).xyz / _VoxelGIResolution;
+
+    // 方向向量只使用 WorldToVoxel 的线性部分，不能包含平移；同样缩放到归一化体素空间。
     float3 direction = mul((float3x3)_VoxelGIWorldToVoxel, directionWorld) / _VoxelGIResolution;
     float enter;
     float exit;
+
+    // 先求射线与单位体素盒的进入/离开距离。射线完全不穿过体素范围时无需执行后续采样。
     if (!VoxelGI_IntersectUnitBox(origin, direction, enter, exit))
         return float4(0.0, 0.0, 0.0, 1.0);
 
