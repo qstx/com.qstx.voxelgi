@@ -48,6 +48,7 @@ float4 _VoxelGIEmissionMapST;
 uint _VoxelGIAlphaClip;
 float _VoxelGIAlphaCutoff;
 uint _VoxelGIOpacityOnly;
+uint _VoxelGIEmissionEnabled;
 
 uint VoxelGI_LoadRawWord(ByteAddressBuffer source, uint byteAddress)
 {
@@ -277,8 +278,11 @@ void VoxelizeMesh(uint3 id : SV_DispatchThreadID)
             float4 surface = _VoxelGIBaseMap.SampleLevel(sampler_VoxelGIBaseMap, baseUV, 0.0) * _VoxelGIBaseColor;
             // Alpha Clip 材质的透明区域不写入体素；否则将其表面颜色和发光写入累积数据。
             if (_VoxelGIAlphaClip != 0u && surface.a < _VoxelGIAlphaCutoff) continue;
-            float3 emissive = _VoxelGIEmissionMap.SampleLevel(sampler_VoxelGIEmissionMap, emissionUV, 0.0).rgb *
-                              _VoxelGIEmissionColor.rgb;
+            // 与 URP/Lit 的 _EMISSION 变体保持一致，关闭时不消费材质中残留的颜色或贴图属性。
+            float3 emissive = _VoxelGIEmissionEnabled != 0u
+                ? _VoxelGIEmissionMap.SampleLevel(sampler_VoxelGIEmissionMap, emissionUV, 0.0).rgb *
+                  _VoxelGIEmissionColor.rgb
+                : 0.0;
             float3 normal = worldNormal[0] * barycentric.x + worldNormal[1] * barycentric.y +
                             worldNormal[2] * barycentric.z;
             if (_VoxelGIHasNormals == 0u || dot(normal, normal) < 1e-6)

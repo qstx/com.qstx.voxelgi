@@ -121,10 +121,10 @@ voxelToWorld = TRS(gridBounds.min, identity, (voxelSize, voxelSize, voxelSize))
 | 模式 | 更新条件 |
 |------|----------|
 | `EveryFrame` | 每帧清空、体素化、解析并重新计算光照 |
-| `OnChange` | Settings、Bounds、Volume UpdateVersion、方向光、Registry、Renderer 状态/矩阵变化；活动 Skinned Mesh 每帧更新 |
+| `OnChange` | Settings、Bounds、Volume UpdateVersion、方向光、Registry、Renderer 状态/矩阵、全部子材质内容或关键字变化；活动 Skinned Mesh 每帧更新 |
 | `Manual` | 首次建立、资源描述变化或 `VoxelGIVolume.RequestVoxelizationUpdate()` |
 
-材质属性脚本原地改变没有通用变更事件；在 OnChange/Manual 下需要显式调用更新 API。
+`OnChange` 使用每个子材质的 `Material.ComputeCRC()` 及 VoxelGI 依赖的关键字检测材质内容变化。运行时纹理对象的像素内容原地更新不一定改变材质 CRC，此类变化以及 `Manual` 模式仍需显式调用更新 API。
 
 ## 5. Render Graph 阶段
 
@@ -177,7 +177,7 @@ voxelToWorld = TRS(gridBounds.min, identity, (voxelSize, voxelSize, voxelSize))
 | 属性 | 用途 |
 |------|------|
 | `_BaseMap` / `_BaseColor` | Albedo 与 Opacity |
-| `_EmissionMap` / `_EmissionColor` | HDR RGB Emissive |
+| `_EmissionMap` / `_EmissionColor` | `_EMISSION` 启用时注入 HDR RGB Emissive；关闭时忽略残留属性 |
 | `_AlphaClip` / `_Cutoff` | Alpha Clip 判断 |
 
 ### 7.2 Kernel 与并发合并
@@ -299,7 +299,7 @@ Albedo/Normal/Emissive/Direct/Final 使用世界空间体素盒 Ray Marching，�
 
 1. 当前只选择第一个活动 Directional Light。
 2. 透明 Render Queue 不参与体素化。
-3. `OnChange` 无法自动识别材质脚本原地修改，需要显式请求更新。
+3. `OnChange` 可检测材质属性、引用和关键字变化，但无法保证识别已绑定纹理内部的像素原地更新；此时需要显式请求更新。
 4. Runtime 新对象若没有 Contributor，要等待 Registry 后备刷新周期才能进入缓存。
 5. 当前正式 GI 验收平台是 Windows D3D11/D3D12/Vulkan 和 macOS Metal；移动端只保证 Samples 相机与工程编译。
 6. Editor 测试与 Runtime PlayMode 测试分属两个程序集，运行时需要分别选择对应程序集。

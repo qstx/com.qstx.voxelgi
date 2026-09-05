@@ -39,6 +39,7 @@ namespace QSTX.VoxelGI
             public static readonly int EmissiveOutput = Shader.PropertyToID("_VoxelGIEmissiveOutput");
             public static readonly int BaseMap = Shader.PropertyToID("_VoxelGIBaseMap");
             public static readonly int EmissionMap = Shader.PropertyToID("_VoxelGIEmissionMap");
+            public static readonly int EmissionEnabled = Shader.PropertyToID("_VoxelGIEmissionEnabled");
         }
 
         static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
@@ -233,20 +234,28 @@ namespace QSTX.VoxelGI
         {
             // 从材质提取 Base/Emission 纹理、颜色、UV 变换和 Alpha Clip 设置，供 Shader 重建表面属性。
             Texture baseTexture = material.HasProperty(BaseMap) ? material.GetTexture(BaseMap) : null;
-            Texture emissionTexture = material.HasProperty(EmissionMap) ? material.GetTexture(EmissionMap) : null;
             Color baseTint = material.HasProperty(BaseColor) ? material.GetColor(BaseColor) : Color.white;
-            Color emissionTint = material.HasProperty(EmissionColor) ? material.GetColor(EmissionColor) : Color.black;
             Vector2 baseScale = material.HasProperty(BaseMap) ? material.GetTextureScale(BaseMap) : Vector2.one;
             Vector2 baseOffset = material.HasProperty(BaseMap) ? material.GetTextureOffset(BaseMap) : Vector2.zero;
             Vector2 emissionScale = material.HasProperty(EmissionMap) ? material.GetTextureScale(EmissionMap) : Vector2.one;
             Vector2 emissionOffset = material.HasProperty(EmissionMap) ? material.GetTextureOffset(EmissionMap) : Vector2.zero;
-            bool alphaClip = material.IsKeywordEnabled("_ALPHATEST_ON") ||
+            bool emissionEnabled = IsEmissionEnabled(material);
+            Texture emissionTexture = emissionEnabled && material.HasProperty(EmissionMap)
+                ? material.GetTexture(EmissionMap)
+                : null;
+            Color emissionTint = emissionEnabled && material.HasProperty(EmissionColor)
+                ? material.GetColor(EmissionColor)
+                : Color.black;
+            bool alphaClip = material.IsKeywordEnabled(VoxelGIShaderKeywords.AlphaTest) ||
                              (material.HasProperty(AlphaClip) && material.GetFloat(AlphaClip) > 0.5f);
             float cutoff = material.HasProperty(Cutoff) ? material.GetFloat(Cutoff) : 0.5f;
+            Texture resolvedEmissionTexture = emissionEnabled
+                ? (emissionTexture != null ? emissionTexture : Texture2D.whiteTexture)
+                : Texture2D.blackTexture;
 
             cmd.SetComputeTextureParam(compute, kernel, IDs.BaseMap, baseTexture != null ? baseTexture : Texture2D.whiteTexture);
-            cmd.SetComputeTextureParam(compute, kernel, IDs.EmissionMap,
-                emissionTexture != null ? emissionTexture : Texture2D.whiteTexture);
+            cmd.SetComputeTextureParam(compute, kernel, IDs.EmissionMap, resolvedEmissionTexture);
+            cmd.SetComputeIntParam(compute, IDs.EmissionEnabled, emissionEnabled ? 1 : 0);
             cmd.SetComputeVectorParam(compute, "_VoxelGIBaseColor", baseTint);
             cmd.SetComputeVectorParam(compute, "_VoxelGIEmissionColor", emissionTint);
             cmd.SetComputeVectorParam(compute, "_VoxelGIBaseMapST",
@@ -256,6 +265,12 @@ namespace QSTX.VoxelGI
             cmd.SetComputeIntParam(compute, "_VoxelGIAlphaClip", alphaClip ? 1 : 0);
             cmd.SetComputeFloatParam(compute, "_VoxelGIAlphaCutoff", cutoff);
             cmd.SetComputeIntParam(compute, "_VoxelGIOpacityOnly", opacityOnly ? 1 : 0);
+        }
+
+        internal static bool IsEmissionEnabled(Material material)
+        {
+            // URP 的表面 Shader 以 _EMISSION 关键字作为是否消费残留 Emission 属性的最终门控。
+            return material != null && material.IsKeywordEnabled(VoxelGIShaderKeywords.Emission);
         }
 
         static void BindAccumulationBuffers(CommandBuffer cmd, ComputeShader compute, int kernel,

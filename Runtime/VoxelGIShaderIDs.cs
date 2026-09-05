@@ -43,6 +43,13 @@ namespace QSTX.VoxelGI
         public const string Bilateral = "BilateralFiltering";
     }
 
+    internal static class VoxelGIShaderKeywords
+    {
+        // 与 URP/Lit 保持一致的材质功能关键字。
+        public const string AlphaTest = "_ALPHATEST_ON";
+        public const string Emission = "_EMISSION";
+    }
+
     internal static class VoxelGIShaderPassNames
     {
         // 全屏 Shader 中各个材质 Pass 的固定名称。

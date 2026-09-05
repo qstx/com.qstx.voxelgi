@@ -126,5 +126,78 @@ namespace QSTX.VoxelGI.Tests
             Assert.That(profile, Is.Not.Null);
             Assert.That(profile.TryGet<QSTX.VoxelGI.VoxelGISettings>(out _), Is.True);
         }
+
+        [Test]
+        public void EmissionKeywordOverridesResidualLitProperties()
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            Assert.That(shader, Is.Not.Null);
+            var material = new Material(shader);
+            try
+            {
+                material.SetColor("_EmissionColor", Color.white);
+                material.SetTexture("_EmissionMap", Texture2D.whiteTexture);
+                material.DisableKeyword(VoxelGIShaderKeywords.Emission);
+                Assert.That(ComputeVoxelizer.IsEmissionEnabled(material), Is.False);
+
+                material.EnableKeyword(VoxelGIShaderKeywords.Emission);
+                Assert.That(ComputeVoxelizer.IsEmissionEnabled(material), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void OnChangeDetectsKeywordAndContentChangesOnAnySharedMaterial()
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            Assert.That(shader, Is.Not.Null);
+            var firstMaterial = new Material(shader);
+            var secondMaterial = new Material(shader);
+            var settings = ScriptableObject.CreateInstance<VoxelGISettings>();
+            var rendererObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var volumeObject = new GameObject("VoxelGI Material Change Test Volume");
+            var context = new VoxelGICameraContext();
+            try
+            {
+                var renderer = rendererObject.GetComponent<MeshRenderer>();
+                renderer.sharedMaterials = new[] { firstMaterial, secondMaterial };
+                var volume = volumeObject.AddComponent<VoxelGIVolume>();
+                settings.updateMode.value = VoxelGIUpdateMode.OnChange;
+                VoxelGISettingsSnapshot snapshot = settings.Resolve();
+                var entries = new[] { new VoxelGIRendererEntry(renderer, true, true, true) };
+                var bounds = new Bounds(Vector3.zero, Vector3.one * 10f);
+                const int registryVersion = 1;
+
+                secondMaterial.SetColor("_EmissionColor", Color.white);
+                secondMaterial.DisableKeyword(VoxelGIShaderKeywords.Emission);
+                context.MarkVoxelized(snapshot, bounds, volume, null, entries, registryVersion);
+                Assert.That(context.ShouldVoxelize(snapshot, bounds, volume, null, entries, registryVersion),
+                    Is.False);
+
+                secondMaterial.EnableKeyword(VoxelGIShaderKeywords.Emission);
+                Assert.That(context.ShouldVoxelize(snapshot, bounds, volume, null, entries, registryVersion),
+                    Is.True);
+
+                context.MarkVoxelized(snapshot, bounds, volume, null, entries, registryVersion);
+                Assert.That(context.ShouldVoxelize(snapshot, bounds, volume, null, entries, registryVersion),
+                    Is.False);
+
+                secondMaterial.SetColor("_BaseColor", Color.red);
+                Assert.That(context.ShouldVoxelize(snapshot, bounds, volume, null, entries, registryVersion),
+                    Is.True);
+            }
+            finally
+            {
+                context.Dispose();
+                Object.DestroyImmediate(volumeObject);
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(settings);
+                Object.DestroyImmediate(firstMaterial);
+                Object.DestroyImmediate(secondMaterial);
+            }
+        }
     }
 }

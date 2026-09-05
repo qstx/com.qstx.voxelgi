@@ -177,7 +177,10 @@ namespace QSTX.VoxelGI
             m_LastRegistryVersion = registryVersion;
             m_LastVolumeUpdateVersion = volume.UpdateVersion;
             m_LastLightHash = ComputeLightHash(light);
-            m_LastRendererHash = ComputeRendererHash(renderers, out _);
+            // 只有 OnChange 会比较 Renderer 内容；EveryFrame 和 Manual 无需承担材质 CRC 的扫描开销。
+            m_LastRendererHash = settings.Voxelization.UpdateMode == VoxelGIUpdateMode.OnChange
+                ? ComputeRendererHash(renderers, out _)
+                : 0;
         }
 
         public void MarkRelit(VoxelGISettingsSnapshot settings, Light light)
@@ -257,28 +260,55 @@ namespace QSTX.VoxelGI
 
         static int ComputeRendererHash(IReadOnlyList<VoxelGIRendererEntry> entries, out bool hasActiveSkinnedRenderer)
         {
-            unchecked
+            hasActiveSkinnedRenderer = false;
+            var materials = ListPool<Material>.Get();
+            try
             {
-                int hash = 17;
-                hasActiveSkinnedRenderer = false;
-                for (int i = 0; i < entries.Count; i++)
+                unchecked
                 {
-                    VoxelGIRendererEntry entry = entries[i];
-                    Renderer renderer = entry.Renderer;
-                    if (renderer == null)
-                        continue;
-                    hash = hash * 31 + renderer.GetInstanceID();
-                    hash = hash * 31 + entry.ContributeSurface.GetHashCode();
-                    hash = hash * 31 + entry.OccludeRadiance.GetHashCode();
-                    hash = hash * 31 + entry.CastVoxelShadow.GetHashCode();
-                    hash = hash * 31 + renderer.enabled.GetHashCode();
-                    hash = hash * 31 + renderer.gameObject.activeInHierarchy.GetHashCode();
-                    hash = hash * 31 + renderer.localToWorldMatrix.GetHashCode();
-                    hash = hash * 31 + (renderer.sharedMaterial != null ? renderer.sharedMaterial.GetInstanceID() : 0);
-                    hasActiveSkinnedRenderer |= renderer is SkinnedMeshRenderer && renderer.enabled &&
-                                                renderer.gameObject.activeInHierarchy;
+                    int hash = 17;
+                    for (int i = 0; i < entries.Count; i++)
+                    {
+                        VoxelGIRendererEntry entry = entries[i];
+                        Renderer renderer = entry.Renderer;
+                        if (renderer == null)
+                            continue;
+                        hash = hash * 31 + renderer.GetInstanceID();
+                        hash = hash * 31 + entry.ContributeSurface.GetHashCode();
+                        hash = hash * 31 + entry.OccludeRadiance.GetHashCode();
+                        hash = hash * 31 + entry.CastVoxelShadow.GetHashCode();
+                        hash = hash * 31 + renderer.enabled.GetHashCode();
+                        hash = hash * 31 + renderer.gameObject.activeInHierarchy.GetHashCode();
+                        hash = hash * 31 + renderer.localToWorldMatrix.GetHashCode();
+
+                        // 遍历全部子材质，并使用内容 CRC 检测 Inspector 或脚本对属性、纹理引用和关键字的原地修改。
+                        materials.Clear();
+                        renderer.GetSharedMaterials(materials);
+                        hash = hash * 31 + materials.Count;
+                        for (int materialIndex = 0; materialIndex < materials.Count; materialIndex++)
+                        {
+                            Material material = materials[materialIndex];
+                            if (material == null)
+                            {
+                                hash *= 31;
+                                continue;
+                            }
+                            hash = hash * 31 + material.GetInstanceID();
+                            hash = hash * 31 + material.ComputeCRC();
+                            // 显式纳入 VoxelGI 依赖的关键字，避免不同 Unity 版本的 CRC 细节造成漏检。
+                            hash = hash * 31 + material.IsKeywordEnabled(VoxelGIShaderKeywords.Emission).GetHashCode();
+                            hash = hash * 31 + material.IsKeywordEnabled(VoxelGIShaderKeywords.AlphaTest).GetHashCode();
+                        }
+
+                        hasActiveSkinnedRenderer |= renderer is SkinnedMeshRenderer && renderer.enabled &&
+                                                    renderer.gameObject.activeInHierarchy;
+                    }
+                    return hash;
                 }
-                return hash;
+            }
+            finally
+            {
+                ListPool<Material>.Release(materials);
             }
         }
 
