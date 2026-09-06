@@ -199,5 +199,71 @@ namespace QSTX.VoxelGI.Tests
                 Object.DestroyImmediate(secondMaterial);
             }
         }
+
+        [Test]
+        public void HistoryContinuityIgnoresRoutineEveryFrameVoxelization()
+        {
+            var settings = ScriptableObject.CreateInstance<VoxelGISettings>();
+            var volumeObject = new GameObject("VoxelGI History Continuity Test Volume");
+            var secondVolumeObject = new GameObject("VoxelGI Second History Continuity Test Volume");
+            var context = new VoxelGICameraContext();
+            try
+            {
+                var volume = volumeObject.AddComponent<VoxelGIVolume>();
+                var secondVolume = secondVolumeObject.AddComponent<VoxelGIVolume>();
+                settings.temporalFilter.value = true;
+                settings.updateMode.value = VoxelGIUpdateMode.EveryFrame;
+                VoxelGISettingsSnapshot snapshot = settings.Resolve();
+                var bounds = new Bounds(Vector3.zero, Vector3.one * 10f);
+
+                context.PreviousUsedFrame = 10;
+                context.LastUsedFrame = 11;
+                Assert.That(context.UpdateHistoryContinuity(snapshot, bounds, volume), Is.True);
+
+                context.HistoryNeedsClear = false;
+                context.PreviousUsedFrame = 11;
+                context.LastUsedFrame = 12;
+                Assert.That(context.UpdateHistoryContinuity(snapshot, bounds, volume), Is.False);
+                Assert.That(context.HistoryNeedsClear, Is.False);
+
+                context.PreviousUsedFrame = 12;
+                context.LastUsedFrame = 13;
+                var movedBounds = new Bounds(Vector3.one, Vector3.one * 10f);
+                Assert.That(context.UpdateHistoryContinuity(snapshot, movedBounds, volume), Is.True);
+
+                context.PreviousUsedFrame = 13;
+                context.LastUsedFrame = 14;
+                Assert.That(context.UpdateHistoryContinuity(snapshot, movedBounds, secondVolume), Is.True);
+
+                settings.voxelResolution.value = 64;
+                snapshot = settings.Resolve();
+                context.PreviousUsedFrame = 14;
+                context.LastUsedFrame = 15;
+                Assert.That(context.UpdateHistoryContinuity(snapshot, movedBounds, secondVolume), Is.True);
+
+                settings.temporalFilter.value = false;
+                snapshot = settings.Resolve();
+                context.PreviousUsedFrame = 15;
+                context.LastUsedFrame = 16;
+                Assert.That(context.UpdateHistoryContinuity(snapshot, movedBounds, secondVolume), Is.False);
+
+                settings.temporalFilter.value = true;
+                snapshot = settings.Resolve();
+                context.PreviousUsedFrame = 16;
+                context.LastUsedFrame = 17;
+                Assert.That(context.UpdateHistoryContinuity(snapshot, movedBounds, secondVolume), Is.True);
+
+                context.PreviousUsedFrame = 17;
+                context.LastUsedFrame = 19;
+                Assert.That(context.UpdateHistoryContinuity(snapshot, bounds, volume), Is.True);
+            }
+            finally
+            {
+                context.Dispose();
+                Object.DestroyImmediate(secondVolumeObject);
+                Object.DestroyImmediate(volumeObject);
+                Object.DestroyImmediate(settings);
+            }
+        }
     }
 }

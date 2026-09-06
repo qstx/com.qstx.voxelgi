@@ -11,6 +11,8 @@ float _VoxelGITemporalCurrentFrameWeight;
 float _VoxelGITemporalClampScale;
 int _VoxelGIHistoryValid;
 
+static const float VoxelGI_MinTemporalCurrentFrameWeight = 0.02;
+
 static const float2 VoxelGI_Neighborhood[9] =
 {
     float2(-1, -1), float2(0, -1), float2(1, -1),
@@ -48,7 +50,9 @@ float4 VoxelGI_TemporalFragment(VoxelGIFullscreenVaryings input) : SV_Target
     history = clamp(history, firstMoment - deviation * _VoxelGITemporalClampScale,
         firstMoment + deviation * _VoxelGITemporalClampScale);
     history = VoxelGI_YCoCgToRGB(history);
-    float currentWeight = 1.0 - saturate((1.0 - _VoxelGITemporalCurrentFrameWeight) *
+    // 即使旧 Profile 或外部调用传入 0，也保留最小当前帧贡献，避免噪声 History 被永久冻结。
+    float baseCurrentWeight = max(_VoxelGITemporalCurrentFrameWeight, VoxelGI_MinTemporalCurrentFrameWeight);
+    float currentWeight = 1.0 - saturate((1.0 - baseCurrentWeight) *
         (1.0 - length(motion) * 30.0));
     return float4(lerp(history, current, currentWeight), 1.0);
 }

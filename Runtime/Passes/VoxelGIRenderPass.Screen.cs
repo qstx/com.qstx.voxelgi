@@ -23,9 +23,11 @@ namespace QSTX.VoxelGI
             public TextureHandle BlueNoise;
             public int Width;
             public int Height;
+            public bool TemporalActive;
         }
 
-        TextureHandle RecordScreenTrace(RenderGraph renderGraph, UniversalResourceData resourceData, VoxelGIFrame frame)
+        TextureHandle RecordScreenTrace(RenderGraph renderGraph, UniversalResourceData resourceData,
+            VoxelGIFrame frame, bool temporalActive)
         {
             // 屏幕追踪 Pass 将相机深度/法线重建为世界位置，并从体素 Radiance 中追踪屏幕空间间接光。
             TextureHandle output = CreateScreenTexture(renderGraph, resourceData.activeColorTexture,
@@ -34,7 +36,7 @@ namespace QSTX.VoxelGI
                 ? frame.CameraContext.FinalRadiance
                 : frame.CameraContext.DirectRadiance);
             TextureHandle blueNoise = renderGraph.ImportTexture(
-                frame.Resources.GetExternalTexture(frame.Settings.Temporal.BlueNoise));
+                frame.Resources.GetExternalTexture(frame.Settings.ScreenTracing.BlueNoise));
             Vector2Int screenSize = GetScreenTargetSize(renderGraph, resourceData.activeColorTexture,
                 frame.CameraData);
 
@@ -47,6 +49,7 @@ namespace QSTX.VoxelGI
             data.BlueNoise = blueNoise;
             data.Width = screenSize.x;
             data.Height = screenSize.y;
+            data.TemporalActive = temporalActive;
             builder.UseTexture(data.Depth, AccessFlags.Read);
             builder.UseTexture(data.Normals, AccessFlags.Read);
             builder.UseTexture(data.Radiance, AccessFlags.Read);
@@ -64,6 +67,7 @@ namespace QSTX.VoxelGI
             // 设置体素空间、Cone 追踪步进、随机抖动和蓝噪声参数，然后绘制全屏三角形。
             VoxelGISettingsSnapshot.ScreenTracingSettings settings = data.Frame.Settings.ScreenTracing;
             VoxelGISettingsSnapshot.TemporalSettings temporal = data.Frame.Settings.Temporal;
+            VoxelGISettingsSnapshot.ScreenTracingSettings screen = data.Frame.Settings.ScreenTracing;
             VoxelGICameraContext cameraContext = data.Frame.CameraContext;
             Vector2 jitter = GetJitter(cameraContext.JitterIndex++, temporal);
 
@@ -81,14 +85,14 @@ namespace QSTX.VoxelGI
             cmd.SetGlobalFloat("_VoxelGIScreenStepScale", settings.StepScale);
             cmd.SetGlobalFloat("_VoxelGIScreenConeAngle", settings.ConeAngle);
             cmd.SetGlobalInt("_VoxelGIScreenQuality", (int)settings.Quality);
-            cmd.SetGlobalInt("_VoxelGITemporalEnabled", temporal.Enabled ? 1 : 0);
-            cmd.SetGlobalInt("_VoxelGIHasBlueNoise", temporal.BlueNoise != null ? 1 : 0);
+            cmd.SetGlobalInt("_VoxelGITemporalEnabled", data.TemporalActive ? 1 : 0);
+            cmd.SetGlobalInt("_VoxelGIHasBlueNoise", screen.BlueNoise != null ? 1 : 0);
             cmd.SetGlobalVector(VoxelGIShaderIDs.ScreenSize,
                 new Vector4(data.Width, data.Height, 1f / data.Width, 1f / data.Height));
-            Texture noiseTexture = temporal.BlueNoise != null ? temporal.BlueNoise : Texture2D.grayTexture;
+            Texture noiseTexture = screen.BlueNoise != null ? screen.BlueNoise : Texture2D.grayTexture;
             cmd.SetGlobalVector("_VoxelGIBlueNoiseSize",
                 new Vector4(noiseTexture.width, noiseTexture.height, 1f / noiseTexture.width, 1f / noiseTexture.height));
-            Vector2 noiseScale = temporal.BlueNoiseScale;
+            Vector2 noiseScale = screen.BlueNoiseScale;
             cmd.SetGlobalVector("_VoxelGIBlueNoiseScale",
                 new Vector4(noiseScale.x, noiseScale.y, 1f / Mathf.Max(noiseScale.x, 1e-5f),
                     1f / Mathf.Max(noiseScale.y, 1e-5f)));
@@ -367,7 +371,11 @@ namespace QSTX.VoxelGI
         {
             // 根据设置生成 Temporal 抖动序列：Halton 用于规则低差异采样，否则使用黄金比例序列。
             if (settings.JitterSequence == VoxelGIJitterSequence.Halton)
-                return new Vector2(Halton(index, 2), Halton(index, 3));
+            {
+                int sequenceLength = Mathf.Max(2, settings.HaltonLength);
+                int sequenceIndex = index % sequenceLength;
+                return new Vector2(Halton(sequenceIndex, 2), Halton(sequenceIndex, 3));
+            }
             const float conjugate = 0.618033988749895f;
             return new Vector2(Mathf.Repeat(index * conjugate, 1f),
                 Mathf.Repeat(index * conjugate * conjugate, 1f));

@@ -39,7 +39,8 @@ namespace QSTX.VoxelGI
             // 每个相机独立持有体素纹理和时空 History；分辨率变化会重建资源并使 History 失效。
             bool resourcesChanged = cameraContext.EnsureVoxelResources(
                 settings.Voxelization.Resolution, settings.Voxelization.ShadowResolution);
-            if (resourcesChanged)
+            bool historyDiscontinuity = cameraContext.UpdateHistoryContinuity(settings, bounds, volume);
+            if (resourcesChanged || historyDiscontinuity)
                 cameraContext.InvalidateHistory();
 
             IReadOnlyList<VoxelGIRendererEntry> renderers =
@@ -63,7 +64,6 @@ namespace QSTX.VoxelGI
                 RecordVoxelization(renderGraph, frame);
                 cameraContext.MarkVoxelized(settings, bounds, volume, directionalLight, renderers,
                     frame.RegistryVersion);
-                cameraContext.InvalidateHistory();
             }
             else if (relight && directionalLight != null && cameraContext.ShouldUpdateShadow(directionalLight))
             {
@@ -74,7 +74,6 @@ namespace QSTX.VoxelGI
             {
                 RecordLighting(renderGraph, frame);
                 cameraContext.MarkRelit(settings, directionalLight);
-                cameraContext.InvalidateHistory();
             }
 
             // 以下阶段将体素辐射投影到屏幕：ScreenTrace 负责空间采样，Temporal/Bilateral 负责降噪，
@@ -91,7 +90,10 @@ namespace QSTX.VoxelGI
             if (!resourceData.cameraDepthTexture.IsValid() || !resourceData.cameraNormalsTexture.IsValid())
                 return;
 
-            TextureHandle screenTrace = RecordScreenTrace(renderGraph, resourceData, frame);
+            bool temporalActive = settings.Temporal.Enabled &&
+                                  resourceData.motionVectorColor.IsValid() &&
+                                  debugMode != VoxelGIDebugMode.ScreenTrace;
+            TextureHandle screenTrace = RecordScreenTrace(renderGraph, resourceData, frame, temporalActive);
             if (debugMode == VoxelGIDebugMode.ScreenTrace)
             {
                 RecordDebug(renderGraph, resourceData, frame, screenTrace);
@@ -100,7 +102,7 @@ namespace QSTX.VoxelGI
             }
 
             TextureHandle current = screenTrace;
-            if (settings.Temporal.Enabled && resourceData.motionVectorColor.IsValid())
+            if (temporalActive)
             {
                 current = RecordTemporal(renderGraph, resourceData, frame, current);
                 if (debugMode == VoxelGIDebugMode.Temporal)

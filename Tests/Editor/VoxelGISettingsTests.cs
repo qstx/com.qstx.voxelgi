@@ -46,5 +46,22 @@ namespace QSTX.VoxelGI.Tests
             Assert.That(snapshot.Bilateral.DepthThreshold.y, Is.GreaterThan(snapshot.Bilateral.DepthThreshold.x));
             Assert.That(snapshot.Bilateral.NormalThreshold.y, Is.GreaterThan(snapshot.Bilateral.NormalThreshold.x));
         }
+
+        [Test]
+        public void TemporalCurrentFrameWeightIsClampedToSupportedRange()
+        {
+            m_Settings.temporalCurrentFrameWeight.value = 0f;
+            VoxelGISettingsSnapshot snapshot = m_Settings.Resolve();
+            Assert.That(snapshot.Temporal.CurrentFrameWeight,
+                Is.EqualTo(VoxelGISettings.MinTemporalCurrentFrameWeight));
+
+            m_Settings.temporalCurrentFrameWeight.value = 0.25f;
+            snapshot = m_Settings.Resolve();
+            Assert.That(snapshot.Temporal.CurrentFrameWeight, Is.EqualTo(0.25f));
+
+            m_Settings.temporalCurrentFrameWeight.value = 2f;
+            snapshot = m_Settings.Resolve();
+            Assert.That(snapshot.Temporal.CurrentFrameWeight, Is.EqualTo(1f));
+        }
     }
 }

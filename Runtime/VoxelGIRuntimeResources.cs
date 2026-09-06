@@ -70,7 +70,8 @@ namespace QSTX.VoxelGI
         public int Resolution { get; private set; }
         public int ShadowResolution { get; private set; }
         public int MipCount { get; private set; }
-        public int LastUsedFrame { get; set; }
+        public int LastUsedFrame { get; set; } = -1;
+        public int PreviousUsedFrame { get; set; } = -1;
         public bool HistoryWriteA { get; set; }
         public bool HistoryNeedsClear { get; set; } = true;
         public int JitterIndex { get; set; }
@@ -85,6 +86,11 @@ namespace QSTX.VoxelGI
         int m_LastRendererHash;
         int m_HistoryWidth;
         int m_HistoryHeight;
+        bool m_HistoryContinuityInitialized;
+        bool m_LastTemporalEnabled;
+        int m_LastHistoryVolumeId;
+        int m_LastHistoryBoundsHash;
+        int m_LastHistoryResolution;
 
         public bool EnsureVoxelResources(int resolution, int shadowResolution)
         {
@@ -195,6 +201,28 @@ namespace QSTX.VoxelGI
             // 体素范围、体素数据或光照变化后，旧屏幕结果不再对应当前数据，必须重新建立 Temporal History。
             HistoryNeedsClear = true;
             JitterIndex = 0;
+        }
+
+        public bool UpdateHistoryContinuity(VoxelGISettingsSnapshot settings, Bounds bounds, VoxelGIVolume volume)
+        {
+            // 每帧体素化/重光照是可积累的输入变化，不应自动清空 History。
+            // 只在相机中断、Volume/Bounds/布局切换或 Temporal 重新开启时重建时序连续性。
+            bool temporalEnabled = settings.Temporal.Enabled;
+            int volumeId = volume != null ? volume.GetInstanceID() : 0;
+            int boundsHash = bounds.GetHashCode();
+            int resolution = settings.Voxelization.Resolution;
+            bool frameGap = PreviousUsedFrame >= 0 && LastUsedFrame - PreviousUsedFrame > 1;
+            bool invalidate = temporalEnabled &&
+                              (!m_HistoryContinuityInitialized || !m_LastTemporalEnabled || frameGap ||
+                               volumeId != m_LastHistoryVolumeId || boundsHash != m_LastHistoryBoundsHash ||
+                               resolution != m_LastHistoryResolution);
+
+            m_HistoryContinuityInitialized = true;
+            m_LastTemporalEnabled = temporalEnabled;
+            m_LastHistoryVolumeId = volumeId;
+            m_LastHistoryBoundsHash = boundsHash;
+            m_LastHistoryResolution = resolution;
+            return invalidate;
         }
 
         static RTHandle AllocateVoxelTexture(int resolution, bool mipmapped, string name)
@@ -384,6 +412,7 @@ namespace QSTX.VoxelGI
                 context = new VoxelGICameraContext();
                 m_CameraContexts.Add(id, context);
             }
+            context.PreviousUsedFrame = context.LastUsedFrame;
             context.LastUsedFrame = Time.frameCount;
             return context;
         }
@@ -391,7 +420,10 @@ namespace QSTX.VoxelGI
         public RTHandle GetExternalTexture(Texture texture)
         {
             // 将外部蓝噪声等 Texture 缓存为 RTHandle，以便在 Render Graph 中作为 Imported 资源使用。
-            texture ??= Texture2D.grayTexture;
+            // 使用 UnityEngine.Object 的布尔判断，同时覆盖真正的 null 和已被销毁的 Unity 对象。
+            // C# 的 ?? 不会调用 Unity 对象的重载判空逻辑，已销毁 Texture 可能因此传入 RTHandles.Alloc。
+            if (!texture)
+                texture = Texture2D.grayTexture;
             if (!m_ExternalTextures.TryGetValue(texture, out RTHandle handle))
             {
                 handle = RTHandles.Alloc(texture);

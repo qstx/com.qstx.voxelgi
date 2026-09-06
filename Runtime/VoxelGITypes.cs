@@ -136,9 +136,12 @@ namespace QSTX.VoxelGI
             public readonly float FirstStep;
             public readonly float StepScale;
             public readonly float ConeAngle;
+            public readonly Texture BlueNoise;
+            public readonly Vector2 BlueNoiseScale;
 
             public ScreenTracingSettings(VoxelGIConeQuality quality, int maxSteps, float alphaAttenuation,
-                float intensity, float firstStep, float stepScale, float coneAngle)
+                float intensity, float firstStep, float stepScale, float coneAngle,
+                Texture blueNoise, Vector2 blueNoiseScale)
             {
                 Quality = quality;
                 MaxSteps = maxSteps;
@@ -147,27 +150,25 @@ namespace QSTX.VoxelGI
                 FirstStep = firstStep;
                 StepScale = stepScale;
                 ConeAngle = coneAngle;
+                BlueNoise = blueNoise;
+                BlueNoiseScale = blueNoiseScale;
             }
         }
 
         internal readonly struct TemporalSettings
         {
             public readonly bool Enabled;
-            public readonly Texture BlueNoise;
             public readonly float CurrentFrameWeight;
             public readonly float ClampScale;
-            public readonly Vector2 BlueNoiseScale;
             public readonly VoxelGIJitterSequence JitterSequence;
             public readonly int HaltonLength;
 
-            public TemporalSettings(bool enabled, Texture blueNoise, float currentFrameWeight, float clampScale,
-                Vector2 blueNoiseScale, VoxelGIJitterSequence jitterSequence, int haltonLength)
+            public TemporalSettings(bool enabled, float currentFrameWeight, float clampScale,
+                VoxelGIJitterSequence jitterSequence, int haltonLength)
             {
                 Enabled = enabled;
-                BlueNoise = blueNoise;
                 CurrentFrameWeight = currentFrameWeight;
                 ClampScale = clampScale;
-                BlueNoiseScale = blueNoiseScale;
                 JitterSequence = jitterSequence;
                 HaltonLength = haltonLength;
             }
