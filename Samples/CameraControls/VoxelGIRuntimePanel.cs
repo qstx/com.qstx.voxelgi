@@ -12,8 +12,10 @@ namespace QSTX.VoxelGI.Samples
         Rect m_WindowRect = new Rect(0f, 16f, 380f, 720f);
         Vector2 m_ScrollPosition;
         bool m_Expanded;
+        float m_SmoothedFps;
         VoxelGIVolume m_Volume;
         VoxelGISettings m_Settings;
+        GUIStyle m_SectionStyle;
 
         void Awake()
         {
@@ -36,6 +38,18 @@ namespace QSTX.VoxelGI.Samples
             m_WindowRect = GUI.Window(GetInstanceID(), m_WindowRect, DrawWindow, "VoxelGI 参数");
         }
 
+        void Update()
+        {
+            float deltaTime = Time.unscaledDeltaTime;
+            if (deltaTime <= 0f)
+                return;
+            float currentFps = 1f / deltaTime;
+            float blend = 1f - Mathf.Exp(-8f * deltaTime);
+            m_SmoothedFps = m_SmoothedFps <= 0f
+                ? currentFps
+                : Mathf.Lerp(m_SmoothedFps, currentFps, blend);
+        }
+
         bool TryGetSettings()
         {
             if (m_Volume == null || m_Volume.sharedProfile == null)
@@ -46,6 +60,7 @@ namespace QSTX.VoxelGI.Samples
         void DrawWindow(int windowId)
         {
             GUILayout.BeginHorizontal();
+            GUILayout.Label($"FPS {m_SmoothedFps:0.0}", GUILayout.Width(76f));
             GUILayout.FlexibleSpace();
             if (GUILayout.Button(m_Expanded ? "收起 ▲" : "展开 ▼", GUILayout.Width(90f)))
                 m_Expanded = !m_Expanded;
@@ -185,7 +200,14 @@ namespace QSTX.VoxelGI.Samples
         void Section(string title)
         {
             GUILayout.Space(8f);
-            GUILayout.Label(title, GUI.skin.GetStyle("boldLabel"));
+            if (m_SectionStyle == null)
+            {
+                m_SectionStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontStyle = FontStyle.Bold
+                };
+            }
+            GUILayout.Label(title, m_SectionStyle);
         }
 
         void DrawToggle(string title, Func<bool> getter, Action<bool> setter)
