@@ -19,7 +19,6 @@ public sealed class FreeFlyCameraController : MonoBehaviour
     [SerializeField, Min(0f)] float m_MoveSpeed = 5f;
     [SerializeField, Min(1f)] float m_SprintMultiplier = 3f;
     [SerializeField, Min(0f)] float m_MoveAcceleration = 14f;
-    [SerializeField, Min(0f)] float m_MouseWheelSpeed = 8f;
 
     [Header("Look")]
     [SerializeField, Min(0f)] float m_MouseLookSensitivity = 2f;
@@ -181,9 +180,7 @@ public sealed class FreeFlyCameraController : MonoBehaviour
         float blend = 1f - Mathf.Exp(-m_MoveAcceleration * deltaTime);
         m_CurrentVelocity = Vector3.Lerp(m_CurrentVelocity, targetVelocity, blend);
 
-        float wheel = m_UsingTouchControls ? 0f : Input.mouseScrollDelta.y;
-        Vector3 wheelMovement = transform.forward * (wheel * m_MouseWheelSpeed);
-        transform.position += m_CurrentVelocity * deltaTime + wheelMovement;
+        transform.position += m_CurrentVelocity * deltaTime;
     }
 
     Vector3 GetKeyboardMoveInput()

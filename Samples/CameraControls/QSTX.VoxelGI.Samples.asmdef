@@ -2,7 +2,9 @@
   "name": "QSTX.VoxelGI.Samples",
   "rootNamespace": "QSTX.VoxelGI.Samples",
   "references": [
-    "UnityEngine.UI"
+    "UnityEngine.UI",
+    "Unity.RenderPipelines.Core.Runtime",
+    "QSTX.VoxelGI.Runtime"
   ],
   "autoReferenced": true
 }
