@@ -638,6 +638,7 @@ GameObject:
   - component: {fileID: 279193030}
   - component: {fileID: 279193031}
   - component: {fileID: 279193032}
+  - component: {fileID: 1900000040}
   m_Layer: 0
   m_Name: Directional Light
   m_TagString: Untagged
@@ -725,6 +726,20 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!114 &1900000040
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 279193029}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ce11af77f2e4fb59369883c65c73b13, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: QSTX.VoxelGI.Samples::QSTX.VoxelGI.Samples.DirectionalLightOrbit
+  m_Speed: 10
+  m_PlayOnStart: 1
 --- !u!114 &279193032
 MonoBehaviour:
   m_ObjectHideFlags: 0
