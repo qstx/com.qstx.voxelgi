@@ -1,0 +1,11 @@
+{
+  "name": "QSTX.VoxelGI.Samples.Editor",
+  "rootNamespace": "QSTX.VoxelGI.Samples",
+  "references": [
+    "QSTX.VoxelGI.Samples"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": false
+}
